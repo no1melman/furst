@@ -2,3 +2,8 @@
 deps/
 build/
 deps_build/
+.vs/
+.idea/
+[Bb]in/
+[Oo]bj/
+out/

@@ -51,17 +51,16 @@ set(LIBCXX_ENABLE_EXCEPTIONS ON CACHE BOOL "")
 set(LIBCXX_ENABLE_RTTI ON CACHE BOOL "")
 set(LIBCXX_ENABLE_THREADS ON CACHE BOOL "")
 
-set(LLVM_EXTERNAL_PROJECTS iwyu ON CACHE STRING "")
+# set(LLVM_EXTERNAL_PROJECTS iwyu ON CACHE STRING "")
 
 # Only build the native target in stage1 since it is a throwaway build.
-set(LLVM_TARGETS_TO_BUILD ${TARGET_ARCHS} CACHE STRING "")
 
 # Optimize the stage1 compiler, but don't LTO it because that wastes time.
 set(CMAKE_BUILD_TYPE Release CACHE STRING "")
 
 # Setting up the stage2 LTO option needs to be done on the stage1 build so that
 # the proper LTO library dependencies can be connected.
-#set(LLVM_ENABLE_LTO OFF CACHE BOOL "")
+set(LLVM_ENABLE_LTO ON CACHE BOOL "")
 
 # Since LLVM_ENABLE_LTO is ON we need a LTO capable linker
 set(LLVM_ENABLE_LLD ON CACHE BOOL "")

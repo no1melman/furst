@@ -6,11 +6,10 @@ project(Furst
   LANGUAGES CXX C)
 
 
-set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_EXPORT_COMPILE_COMMANDS 1)
 
 # add_link_options(-fuse-ld=lld)
-
 
 find_program(CCACHE_PROGRAM ccache)
 
@@ -34,3 +33,21 @@ if(CCACHE_PROGRAM)
 else()
   message(FATAL_ERROR "Unable to find the program ccache. Set FURST_DISABLE_CCACHE to ON")
 endif()
+
+# set(LLVM_INSTALL_DIR "" CACHE PATH "LLVM installation directory")
+# list(APPEND CMAKE_PREFIX_PATH "${LLVM_INSTALL_DIR}/lib/cmake/llvm/")
+find_package(LLVM REQUIRED CONFIG)
+
+message(STATUS "Found LLVM ${LLVM_PACKAGE_VERSION}")
+message(STATUS "Using LLVMConfig.cmake in: ${LLVM_DIR}")
+
+include_directories(${LLVM_INCLUDE_DIRS})
+link_directories(${LLVM_LIBRARY_DIRS})
+add_definitions(${LLVM_DEFINITIONS})
+
+if(NOT LLVM_ENABLE_RTTI)
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-rtti")
+endif()
+
+set(CMAKE_LIBRARY_OUTPUT_DIRECTORY "${PROJECT_BINARY_DIR}/lib")
+add_subdirectory(lib)
