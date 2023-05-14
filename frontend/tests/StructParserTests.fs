@@ -17,6 +17,19 @@ let ``Struct with field should pass`` () =
   ParserHelper.testParser (spaces >>. structParser) document ignore
 
 [<Fact>]
+let ``Struct with multiple fields should pass`` () =
+  let document = """
+  struct GodStruct {
+    name: somekindofvalue
+    someotherName: somestuff
+    further: things here
+  }
+  """
+  
+  ParserHelper.testParser (spaces >>. structParser) document ignore
+
+
+[<Fact>]
 let ``Struct without field should pass`` () =
   let document = """
   struct GodStruct {
