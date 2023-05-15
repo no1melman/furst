@@ -4,10 +4,11 @@ open CommonParsers
 open StructParser
 
 // let documentParser =
-  // spaces >>. (letWord <|> structParser) .>> spaces
+// spaces >>. (letWord <|> structParser) .>> spaces
 
 
-let document = """
+let document =
+    """
 struct GodStruct {
   name: somekindofvalue
 }
@@ -16,7 +17,7 @@ struct GodStruct {
 let result = runParserOnString (spaces >>. structParser) () "code" document
 
 match result with
-| Success (r, _, _) -> printfn "all good :: %A" r
-| Failure (e, _, _) -> printfn "nah we fooked :: %s" e
+| Success(r, _, _) -> printfn "all good :: %A" r
+| Failure(e, _, _) -> printfn "nah we fooked :: %s" e
 
 printfn "Hello from F#"
