@@ -22,7 +22,7 @@ let ``Struct with multiple fields should pass`` () =
   struct GodStruct {
     name: somekindofvalue
     someotherName: somestuff
-    further: things here
+    further: things 
   }
   """
   
