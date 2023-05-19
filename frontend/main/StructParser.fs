@@ -17,7 +17,7 @@ type ParsedStruct =
   }
 
 let fieldParser = 
-  spaces >>. (word .>> spaces <?> "Expecting a field name") <!> "Going to word" 
+  spaces >>. (word .>> spaces <?> "Expecting a field name")
   .>> (pstring ":" <?> "Expecting field separator (:)")
   .>> spaces1 .>>. (word <?> "Expecting field type")
   |>> fun (fieldName, fieldValue) -> { FieldName = fieldName; FieldValue = fieldValue }
