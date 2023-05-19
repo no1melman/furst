@@ -8,6 +8,7 @@
   <ItemGroup>
     <Compile Include="CommonParsers.fs" />
     <Compile Include="StructParser.fs" />
+    <Compile Include="VariableDefinitionParser.fs" />
     <Compile Include="Program.fs" />
   </ItemGroup>
 

@@ -12,6 +12,7 @@
     <Compile Include="ParserHelper.fs" />
     <Compile Include="Tests.fs" />
     <Compile Include="StructParserTests.fs" />
+    <Compile Include="VariableTests.fs" />
     <Compile Include="Program.fs" />
   </ItemGroup>
 
