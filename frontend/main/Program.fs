@@ -9,7 +9,7 @@ open StructParser
 
 let document = """
 struct GodStruct {
-  name: somekindofvalue
+  : somekindofvalue
 }
 """
 

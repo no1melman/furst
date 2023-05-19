@@ -12,17 +12,22 @@ type ParsedField =
 
 type ParsedStruct =
   {
-    Name: string
     Type: string
     Fields: ParsedField list
   }
 
 let fieldParser = 
-  word .>> spaces .>> pstring ":" .>> spaces1 .>>. word .>> spaces1 |>> fun (fieldName, fieldValue) -> { FieldName = fieldName; FieldValue = fieldValue }
+  spaces >>. (word .>> spaces <?> "Expecting a field name") <!> "Going to word" 
+  .>> (pstring ":" <?> "Expecting field separator (:)")
+  .>> spaces1 .>>. (word <?> "Expecting field type")
+  |>> fun (fieldName, fieldValue) -> { FieldName = fieldName; FieldValue = fieldValue }
+
+let structContent = between openBraces closedBraces (sepEndBy fieldParser spaces1)
+let emptyBraces = openBraces .>> spaces .>>. closedBraces >>. preturn []
+
 
 let structParser =
   let structName = word <?> "Expecting a struct name" 
-  structWord .>> spaces1 .>>. structName .>> spaces1
-  .>>. between openBraces closedBraces
-        (spaces1 >>. sepEndBy fieldParser (pchar '\n'))
-  |>> fun ((name, _type) , fields) -> { Name = name; Type = _type; Fields = fields}
+  structWord .>> spaces1 >>. structName .>> spaces1
+  .>>. (attempt emptyBraces <|> structContent)
+  |>> fun ( _type , fields) -> { Type = _type; Fields = fields}
