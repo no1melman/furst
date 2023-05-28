@@ -35,33 +35,28 @@ let typeChoices : Parser<TypeDefinitions> = choice [
     pstring TypeKeywords.stringType >>. preturn String
 ]
 
-let couldExpect (pleft: Parser<'a,_>) (charsEitherOr: char * char) l : Parser<'a option,_> = 
-    (fun stream ->
-        let leftchar = fst charsEitherOr
-        let rightchar = snd charsEitherOr
-        let firstChar = attempt (pchar leftchar) stream
 
-        if firstChar.Status = Ok then 
-            let leftStr = (pleft .>> pchar rightchar) stream
-            if leftStr.Status = Ok then
-                Reply(Some leftStr.Result)
-            else 
-                Reply(FatalError, leftStr.Error)
-            
-        else 
-            let secondChar = attempt (pchar rightchar) stream 
-            if secondChar.Status = Ok then 
-                Reply(None) 
-            else 
-                Reply(FatalError, messageError l)
-    )
-
+// let variableDefinitionParser =
+//  (letWord <?> "Expecting let keyword") .>> spaces
+//  >>. (word <?> "Expecting variable identifier") .>> spaces
+//  .>>. couldExpect (
+//     spaces1 >>. typeChoices .>> spaces1 
+//     ) (':','=') "Expected assignment operator"
+//  .>> spaces1
+//  .>>. word 
+//  |>> (fun ((a, b), c) -> 
+//    { Identifier = a
+//      RightHandAssignment = Value { Value = c }
+//      Type = b 
+//             |> function 
+//                | Some t -> t
+//                | None -> Inferred
+//    })
 let variableDefinitionParser =
  (letWord <?> "Expecting let keyword") .>> spaces
  >>. (word <?> "Expecting variable identifier") .>> spaces
- .>>. couldExpect (
-    spaces1 >>. typeChoices .>> spaces1 
-    ) (':','=') "Expected assignment operator"
+ .>>. opt ( pchar ':' >>. spaces1 >>. typeChoices .>> spaces1 )
+ .>> pchar '=' <?> "Expected assignment operator"
  .>> spaces1
  .>>. word 
  |>> (fun ((a, b), c) -> 
