@@ -4,6 +4,7 @@ open Xunit
 open System
 open CommonParsers
 open FParsec
+open BasicTypes
 
 open VariableDefinitionParser
 

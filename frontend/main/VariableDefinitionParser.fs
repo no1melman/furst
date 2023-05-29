@@ -2,6 +2,7 @@ module VariableDefinitionParser
 
 open FParsec
 open CommonParsers
+open BasicTypes
 
 type ValueDefinition =
   {
@@ -11,13 +12,6 @@ type ValueDefinition =
 type RightHandAssignment =
   | Value of ValueDefinition
 
-type TypeDefinitions =
-  | I32
-  | I64
-  | Float
-  | Double
-  | String
-  | Inferred
 //| UserDefined of string
 
 type VariableDefinition =
