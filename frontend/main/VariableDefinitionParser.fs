@@ -3,16 +3,7 @@ module VariableDefinitionParser
 open FParsec
 open CommonParsers
 open BasicTypes
-
-type ValueDefinition =
-  {
-    Value: string
-  }
-
-type RightHandAssignment =
-  | Value of ValueDefinition
-
-//| UserDefined of string
+open LanguageExpressions
 
 type VariableDefinition =
   {
@@ -20,15 +11,6 @@ type VariableDefinition =
     Type: TypeDefinitions 
     RightHandAssignment: RightHandAssignment
   }
-
-let typeChoices : Parser<TypeDefinitions> = choice [
-    pstring TypeKeywords.i32Type >>. preturn I32
-    pstring TypeKeywords.i64Type >>. preturn I64
-    pstring TypeKeywords.doubleType >>. preturn Double
-    pstring TypeKeywords.floatType >>. preturn Float
-    pstring TypeKeywords.stringType >>. preturn String
-]
-
 
 // let variableDefinitionParser =
 //  (letWord <?> "Expecting let keyword") .>> spaces

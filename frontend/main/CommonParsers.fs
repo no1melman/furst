@@ -1,6 +1,7 @@
 module CommonParsers
 
-open FParsec;
+open FParsec
+open BasicTypes
 
 type Parser<'t> = Parser<'t, unit>
 
@@ -43,6 +44,14 @@ let couldExpect (pleft: Parser<'a,_>) (charsEitherOr: char * char) l : Parser<'a
             else 
                 Reply(FatalError, messageError l)
     )
+
+let typeChoices : Parser<TypeDefinitions> = choice [
+    pstring i32Type >>. preturn I32
+    pstring i64Type >>. preturn I64
+    pstring doubleType >>. preturn Double
+    pstring floatType >>. preturn Float
+    pstring stringType >>. preturn String
+]
 
 // let rec matchThis (plist: (char * Parser<'a, _> * string) list) : Parser<'a, _> =
 //   (fun stream -> 
