@@ -14,18 +14,32 @@ let something a =
 
 """
 
-type Expressions =
-  | Return of string
+type ParameterExpression =
+  {
+    Name: NameExpression
+    Type: TypeDefinitions
+  }
+
 
 type FunctionDefinition =
   {
     Identifier: string
     Type: TypeDefinitions 
     RightHandAssignment: RightHandAssignment
-    Parameters: string list
+    Parameters: ParameterExpression list
   }
+
+let typedParameterParser =
+  between (pchar '(') (pchar ')') (
+    spaces >>. word 
+    .>> spaces .>> pchar ':' 
+    .>> spaces1 .>>. typeChoices |>> fun (n, t) -> { Name = NameExpression n; Type = t } )
+
+let singleParameterParser = 
+  word |>> fun name -> { Name = NameExpression name; Type = Inferred }
+
 let parameterDefinitionParser =
-  sepEndBy1 word (pchar ' ') 
+  sepEndBy1 ((attempt singleParameterParser <|> typedParameterParser)) (pchar ' ') 
 
 let functionDefinitionParser =
  (letWord <?> "Expecting let keyword") .>> spaces

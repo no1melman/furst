@@ -8,3 +8,4 @@ type ValueDefinition =
 type RightHandAssignment =
   | Value of ValueDefinition
 
+type NameExpression = NameExpression of string 
