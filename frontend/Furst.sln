@@ -7,6 +7,11 @@ Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "Furst.Frontend", "main\Furs
 EndProject
 Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "Furst.Tests", "tests\Furst.Tests.fsproj", "{DB8D48B0-8C42-4F59-888F-86F8B8979341}"
 EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "misc", "misc", "{49B03D08-EAD5-421C-86B1-2578B54DD337}"
+	ProjectSection(SolutionItems) = preProject
+		test.fsx = test.fsx
+	EndProjectSection
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU

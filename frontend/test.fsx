@@ -1,14 +1,13 @@
 #r "nuget:FParsec"
-#load "./main/CommonParsers.fs" "./main/StructParser.fs"
+#load "./main/BasicTypes.fs" "./main/CommonParsers.fs" 
 
 open FParsec
-open StructParser
 open CommonParsers
 
-let structText = """
-struct thingy {
-
-}
+let document = """let a =
+  b
+  let c =
+    d
 """
 
 let (<!>) (p: Parser<_,_>) label : Parser<_,_> =
@@ -18,21 +17,45 @@ let (<!>) (p: Parser<_,_>) label : Parser<_,_> =
         printfn "%A: Leaving %s (%A)" stream.Position label reply.Status
         reply
 
-let emptyBraces = openBraces .>> spaces .>>. closedBraces |>>( fun ((a, b)) -> [a;b]) <!> "Empty Braces"
 
-let fieldParser = 
-    spaces >>. word .>> spaces .>>. pstring ":" |>> (fun (a,b) -> [a;b]) 
-    .>> spaces1 .>>. word |>> (fun (a,b) -> a @ [b])
-    <!> "Field Parser"
+let indentSize = 2
 
-let structContent = between openBraces closedBraces (sepEndBy fieldParser spaces1 <!> "Field Sep Parser") |>> (fun l -> l |> List.collect id) <!> "Struct Content"
+let mainParser, mainParserRef = createParserForwardedToRef<string list, BlockScopeParserState>()
 
-let actualStructParser =
-    structWord .>> spaces1 .>>. word .>> spaces1 
-    |>> fun ((a, b)) -> [a;b]
-    .>>. (attempt emptyBraces <|> structContent)
-    |>> fun (a, b) -> a @ b
+let goDeep =
+  updateUserState (fun bsp -> { bsp with Depth = bsp.Depth + 1 })
 
+let backOut =
+  updateUserState (fun bsp -> { bsp with Depth = bsp.Depth - 1 })
 
-runParserOnString (spaces >>. actualStructParser) () "code" structText
+let depthFromState (pfn: int -> Parser<_,BlockScopeParserState>) =
+  (fun (stream: CharStream<BlockScopeParserState>) ->
+    let { Depth = depth } = stream.UserState
+    (pfn depth) stream
+    )
+
+let onlyDepthSpaces =
+  depthFromState (fun depth -> onlyNSpaces (depth * indentSize))
+
+let upgradeToFatal (p: Parser<_,_>) =
+  fun stream ->
+    let reply = p stream
+    if reply.Status = Error then
+      Reply(FatalError, reply.Error)
+    else
+      reply
+
+mainParserRef.Value <-
+  goDeep >>.
+  letWord >>.
+  allSpaces >>.
+  word >>.
+  allSpaces >>.
+  assignmentSymbol >>.
+  newline >>.
+  (sepEndBy1 (onlyDepthSpaces >>. (attempt (word |>> fun a -> [a]) <!> "attempting word" <|> mainParser)) ((upgradeToFatal newline) <!> "sep new line")
+    |>> List.collect id) .>>
+  backOut
+
+runParserOnString (mainParser) BlockScopeParserState.Default "code" document
 |> printfn "%A"

@@ -9,25 +9,9 @@ type VariableDefinition =
   {
     Identifier: string
     Type: TypeDefinitions 
-    RightHandAssignment: RightHandAssignment
+    Value: ValueExpression
   }
 
-// let variableDefinitionParser =
-//  (letWord <?> "Expecting let keyword") .>> spaces
-//  >>. (word <?> "Expecting variable identifier") .>> spaces
-//  .>>. couldExpect (
-//     spaces1 >>. typeChoices .>> spaces1 
-//     ) (':','=') "Expected assignment operator"
-//  .>> spaces1
-//  .>>. word 
-//  |>> (fun ((a, b), c) -> 
-//    { Identifier = a
-//      RightHandAssignment = Value { Value = c }
-//      Type = b 
-//             |> function 
-//                | Some t -> t
-//                | None -> Inferred
-//    })
 let variableDefinitionParser =
  (letWord <?> "Expecting let keyword") .>> spaces
  >>. (word <?> "Expecting variable identifier") .>> spaces
@@ -37,7 +21,7 @@ let variableDefinitionParser =
  .>>. word 
  |>> (fun ((a, b), c) -> 
    { Identifier = a
-     RightHandAssignment = Value { Value = c }
+     Value = ValueExpression c
      Type = b 
             |> function 
                | Some t -> t

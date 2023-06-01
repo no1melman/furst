@@ -19,9 +19,9 @@ let ``Let variable definition with value should succeed`` () =
     Assert.Equal("thing", e.Identifier)
     Assert.Equal(Inferred, e.Type)
 
-    e.RightHandAssignment
-    |> function 
-       | Value vd -> Assert.Equal("this", vd.Value)
+    e.Value
+    |> function
+       | ValueExpression v -> Assert.Equal("this", v)
   
   )
   
@@ -45,9 +45,9 @@ let ``Let variable definition along with type definition with value should succe
     Assert.Equal("thing", e.Identifier)
     Assert.Equal(I32, e.Type)
 
-    e.RightHandAssignment
-    |> function 
-       | Value vd -> Assert.Equal("this", vd.Value)
+    e.Value
+    |> function
+       | ValueExpression v -> Assert.Equal("this", v)
   )
 
 [<Fact>]

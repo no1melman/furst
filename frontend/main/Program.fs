@@ -13,7 +13,7 @@ struct GodStruct {
 }
 """
 
-let result = runParserOnString (spaces >>. structParser) () "code" document
+let result = runParserOnString (spaces >>. structParser) BlockScopeParserState.Default "code" document
 
 match result with
 | Success (r, _, _) -> printfn "all good :: %A" r

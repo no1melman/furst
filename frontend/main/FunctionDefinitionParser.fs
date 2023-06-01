@@ -6,34 +6,13 @@ open BasicTypes
 open CommonParsers
 open LanguageExpressions
 
-let functionString = """
-
-let something a = 
-  a
-
-
-"""
-
-type ParameterExpression =
-  {
-    Name: NameExpression
-    Type: TypeDefinitions
-  }
-
-
-type FunctionDefinition =
-  {
-    Identifier: string
-    Type: TypeDefinitions 
-    RightHandAssignment: RightHandAssignment
-    Parameters: ParameterExpression list
-  }
-
 let typedParameterParser =
   between (pchar '(') (pchar ')') (
     spaces >>. word 
     .>> spaces .>> pchar ':' 
-    .>> spaces1 .>>. typeChoices |>> fun (n, t) -> { Name = NameExpression n; Type = t } )
+    .>> spaces1 .>>. typeChoices 
+    |>> fun (n, t) -> { Name = NameExpression n; Type = t } )
+    <?> "Expect typed parameter :: (a: string)"
 
 let singleParameterParser = 
   word |>> fun name -> { Name = NameExpression name; Type = Inferred }
@@ -41,19 +20,22 @@ let singleParameterParser =
 let parameterDefinitionParser =
   sepEndBy1 ((attempt singleParameterParser <|> typedParameterParser)) (pchar ' ') 
 
+let bodyDefinitionParser =
+  spaces1 >>. sepEndBy1 (word |>> fun w -> ValueExpression w |> ReturnExpression) newline
+
 let functionDefinitionParser =
  (letWord <?> "Expecting let keyword") .>> spaces
  >>. (word <?> "Expecting variable identifier") .>> spaces
+ .>>. parameterDefinitionParser .>> spaces
  .>>. opt ( pchar ':' >>. spaces1 >>. typeChoices .>> spaces1 )
  .>> pchar '=' <?> "Expected assignment operator"
- .>> spaces1
- .>>. word 
- |>> (fun ((a, b), c) -> 
+ .>>. bodyDefinitionParser 
+ |>> (fun (((a, b), c), d) -> 
    { Identifier = a
-     RightHandAssignment = Value { Value = c }
-     Parameters = []
-     Type = b 
+     Parameters = b
+     Type = c 
             |> function 
                | Some t -> t
                | None -> Inferred
+     Body = BodyExpression d
    })

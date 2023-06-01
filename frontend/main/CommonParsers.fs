@@ -3,9 +3,14 @@ module CommonParsers
 open FParsec
 open BasicTypes
 
-type Parser<'t> = Parser<'t, unit>
+type BlockScopeParserState = 
+  {
+    Depth: int
+  }
+  static member Default = { Depth = 0 }
+type Parser<'t> = Parser<'t, BlockScopeParserState>
 
-let isIndentifierChar c = isLetter c || isDigit c
+let isIndentifierChar c = c <> ' ' && (isLetter c || isDigit c)
 let word : Parser<_> = many1Satisfy2 isIndentifierChar isIndentifierChar
 
 let letWord : Parser<_> = pstring "let"
@@ -13,9 +18,26 @@ let structWord : Parser<_> = pstring "struct" <?> "Expecting struct"
 
 let openBraces : Parser<_> = pstring "{"
 let closedBraces : Parser<_> = pstring "}"
-let assignmentOperator : Parser<_>  = pstring "->"
+let gotoSymbol : Parser<_>  = pstring "->"
+let assignmentSymbol : Parser<_>  = pchar '='
 let enclosementOpenOperator : Parser<_>  = pstring "("
 let enclosementClosedOperator : Parser<_> = pstring ")"
+
+let allSpaces : Parser<_> = 
+  (fun stream ->
+    let f = (fun c -> c = ' ')
+    let n = stream.SkipCharsOrNewlinesWhile(f, f)
+    if false || n <> 0 then Reply(n) 
+    else Reply(Error, expected "only spaces")
+  )
+
+let onlyNSpaces count : Parser<_> =
+  (fun stream -> 
+    let f = (fun c -> c = ' ')
+    let n = stream.SkipCharsOrNewlinesWhile(f, f)
+    if false || n = count then Reply(())
+    else Reply(Error, expected $"%i{count} spaces but got %i{n}")
+  )
 
 let (<!>) (p: Parser<_,_>) label : Parser<_,_> =
     fun stream ->
