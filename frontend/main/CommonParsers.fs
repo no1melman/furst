@@ -3,11 +3,17 @@ module CommonParsers
 open FParsec
 open BasicTypes
 
+type IndentationCapture =
+    | NoStatus
+    | WeveLeftTheMethod
+    | JustJumpedIn
+    
 type BlockScopeParserState = 
   {
     Depth: int
+    Capture: IndentationCapture
   }
-  static member Default = { Depth = 0 }
+  static member Default = { Depth = 0; Capture = NoStatus }
 type Parser<'t> = Parser<'t, BlockScopeParserState>
 
 let isIndentifierChar c = c <> ' ' && (isLetter c || isDigit c)
@@ -30,7 +36,7 @@ let allSpaces : Parser<_> =
     if false || n <> 0 then Reply(n) 
     else Reply(Error, expected "only spaces")
   )
-
+        
 let onlyNSpaces count : Parser<_> =
   (fun stream -> 
     let f = (fun c -> c = ' ')
