@@ -38,11 +38,15 @@ let allSpaces : Parser<_> =
   )
         
 let onlyNSpaces count : Parser<_> =
-  (fun stream -> 
-    let f = (fun c -> c = ' ')
-    let n = stream.SkipCharsOrNewlinesWhile(f, f)
-    if false || n = count then Reply(())
-    else Reply(Error, expected $"%i{count} spaces but got %i{n}")
+  (fun stream ->
+    if count = 0 then
+        printfn "ignoring eating any spaces"
+        Reply(())
+    else 
+        let f = (fun c -> c = ' ')
+        let n = stream.SkipCharsOrNewlinesWhile(f, f)
+        if false || n = count then Reply(())
+        else Reply(Error, expected $"%i{count} spaces but got %i{n}")
   )
 
 let (<!>) (p: Parser<_,_>) label : Parser<_,_> =
@@ -72,6 +76,17 @@ let couldExpect (pleft: Parser<'a,_>) (charsEitherOr: char * char) l : Parser<'a
             else 
                 Reply(FatalError, messageError l)
     )
+    
+let pBranch pLeftCondition pLeftBranch pRightBranch : Parser<_,_> =
+    fun stream ->
+        printfn "%A" (stream.Peek())
+        let mutable streamState = stream.State
+        let leftBranchResult = (attempt pLeftCondition) stream
+        stream.BacktrackTo(&streamState)
+        if leftBranchResult.Status = Ok then
+            pLeftBranch stream
+        else
+            pRightBranch stream
 
 let typeChoices : Parser<TypeDefinitions> = choice [
     pstring i32Type >>. preturn I32
