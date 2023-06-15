@@ -1,5 +1,7 @@
 module BasicTypes
 
+open FParsec.CharParsers
+
 type TypeDefinitions =
   | I32
   | I64
@@ -7,10 +9,36 @@ type TypeDefinitions =
   | Double
   | String
   | Inferred
-//| UserDefined of string
+  | UserDefined of string
 
-let i32Type = "i32"
-let i64Type = "i64"
-let doubleType = "double"
-let floatType = "float"
-let stringType = "string"
+type Tokens =
+  | Let
+  | Struct
+  | OpenBrace
+  | ClosedBrace
+  | Goto
+  | Assignment
+  | OpenParen
+  | ClosedParen
+  | Pipe
+  | Addition
+  | Subtraction
+  | Multiply
+  | SemiColonTerminator
+  | GreaterThan
+  | LessThan
+  | Match
+  | Type
+  | TypeDefinition of TypeDefinitions
+  | TypeIdentifier
+  | Word of string
+  | Parameter of string
+  | NumberLiteral of NumberLiteral
+  | NoToken
+
+type Row =
+    { Indent: int
+      Expressions: Tokens list
+      Body: Row list }
+
+

@@ -2,14 +2,11 @@ module LanguageExpressions
 
 open BasicTypes
 
-type ValueExpression = ValueExpression of string
-
-type NameExpression = NameExpression of string 
 
 type ParameterExpression =
   {
-    Name: NameExpression
-    Type: TypeDefinitions
+    Name: Tokens
+    Type: Tokens
   }
 
 type BodyExpression = BodyExpression of Expression list
@@ -22,4 +19,4 @@ type BodyExpression = BodyExpression of Expression list
     }
   and Expression =
     | FunctionExpression of FunctionDefinition
-    | ReturnExpression of ValueExpression
+    | ReturnExpression of Tokens

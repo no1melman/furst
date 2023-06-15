@@ -1,11 +1,10 @@
 module StructParserTests
 
-open System
 open Xunit
-open FParsec
-open CommonParsers
 open StructParser
-open Xunit.Abstractions
+open BasicTypes
+
+let createUserDefined = UserDefined >> TypeDefinition
 
 [<Fact>]
 let ``Struct with field should pass`` () =
@@ -29,11 +28,14 @@ let ``Struct with multiple fields should pass`` () =
   
   ParserHelper.testParser structParser document (fun s -> 
     Assert.NotEmpty(s.Fields)
-    Assert.Equal("GodStruct", s.Type)
+    s.Type
+    |> function
+       | Word t -> Assert.Equal("GodStruct", t)
+       | _ -> invalidArg "Struct Type" "Needs to be TypeDefinition"
 
-    Assert.True(s.Fields |> List.contains { FieldName = "name"; FieldValue = "somekindofvalue" })
-    Assert.True(s.Fields |> List.contains { FieldName = "someotherName"; FieldValue = "somestuff" })
-    Assert.True(s.Fields |> List.contains { FieldName = "further"; FieldValue = "things" })
+    Assert.True(s.Fields |> List.contains { FieldName = Word "name"; FieldValue = createUserDefined "somekindofvalue" })
+    Assert.True(s.Fields |> List.contains { FieldName = Word "someotherName"; FieldValue = createUserDefined "somestuff" })
+    Assert.True(s.Fields |> List.contains { FieldName = Word "further"; FieldValue = createUserDefined "things" })
   )
 
 
@@ -46,7 +48,10 @@ let ``Struct without field should pass`` () =
   
   ParserHelper.testParser structParser document (fun s -> 
     Assert.Empty(s.Fields)
-    Assert.Equal("GodStruct", s.Type)
+    s.Type
+    |> function
+       | Word t -> Assert.Equal("GodStruct", t)
+       | _ -> invalidArg "Struct Type" "Needs to be TypeDefinition"
   )
 
 [<Fact>]

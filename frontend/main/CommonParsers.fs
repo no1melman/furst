@@ -17,27 +17,52 @@ type BlockScopeParserState =
 type Parser<'t> = Parser<'t, BlockScopeParserState>
 
 let isIndentifierChar c = c <> ' ' && (isLetter c || isDigit c)
-let word : Parser<_> = many1Satisfy2 isIndentifierChar isIndentifierChar
+let wordParser = many1Satisfy2 isIndentifierChar isIndentifierChar
 
-let letWord : Parser<_> = pstring "let"
-let matchWord : Parser<_> = pstring "match"
-let typeWord : Parser<_> = pstring "type"
-let structWord : Parser<_> = pstring "struct" <?> "Expecting struct"
+let i32Type = "i32"
+let i64Type = "i64"
+let doubleType = "double"
+let floatType = "float"
+let stringType = "string"
 
-let openBraces : Parser<_> = pstring "{"
-let closedBraces : Parser<_> = pstring "}"
-let gotoSymbol : Parser<_>  = pstring "->"
-let assignmentSymbol : Parser<_>  = pchar '='
-let enclosementOpenOperator : Parser<_>  = pstring "("
-let enclosementClosedOperator : Parser<_> = pstring ")"
+let letWordTokenParser : Parser<_> = pstring "let" >>% Let
+let structWordTokenParser : Parser<_> = pstring "struct" <?> "Expecting struct" >>% Struct
+let openBracesTokenParser : Parser<_> = pstring "{" >>% OpenBrace
+let closedBracesTokenParser : Parser<_> = pstring "}" >>% ClosedBrace
+let gotoSymbolTokenParser : Parser<_>  = pstring "->" >>% Goto
+let assignmentSymbolTokenParser : Parser<_>  = pchar '=' >>% Assignment
+let enclosementOpenOperatorTokenParser : Parser<_>  = pstring "(" >>% OpenParen
+let enclosementClosedOperatorTokenParser : Parser<_> = pstring ")" >>% ClosedParen
+let pipeSymbolTokenParser : Parser<_>  = pstring "|" >>% Pipe
+let additionSymbolTokenParser : Parser<_>  = pchar '+' >>% Addition
+let subtractionSymbolTokenParser : Parser<_>  = pchar '-' >>% Subtraction
+let multiplySymbolTokenParser : Parser<_>  = pchar '*' >>% Multiply
+let semiColonSymbolTokenParser : Parser<_> = pstring ";" >>% SemiColonTerminator
+let greaterThanSymbolTokenParser : Parser<_>  = pstring ">" >>% GreaterThan
+let lessThanSymbolTokenParser : Parser<_> = pstring "<" >>% LessThan
+let matchWordTokenParser : Parser<_> = pstring "match" >>% Match
+let typeWordTokenParser : Parser<_> = pstring "type" >>% Type
+let typeChoicesTokenParser : Parser<_> = choice [
+    pstring i32Type >>. preturn (I32 |> TypeDefinition)
+    pstring i64Type >>. preturn (I64 |> TypeDefinition)
+    pstring doubleType >>. preturn (Double |> TypeDefinition)
+    pstring floatType >>. preturn (Float |> TypeDefinition)
+    pstring stringType >>. preturn (String |> TypeDefinition)
+    wordParser |>> (UserDefined >> TypeDefinition)
+]
+let typeIdentifierTokenParser : Parser<_> = pchar ':' >>% TypeIdentifier
 
-let pipeSymbol : Parser<_>  = pstring "|"
-let additionSymbol : Parser<_>  = pchar '+'
-let subtractionSymbol : Parser<_>  = pchar '-'
-let multiplySymbol : Parser<_>  = pchar '*'
-let greaterThanSymbol : Parser<_>  = pstring ">"
-let lessThanSymbol : Parser<_> = pstring "<"
-let semiColonSymbol : Parser<_> = pstring ";"
+let wordTokenParser : Parser<_> = wordParser |>> Word
+let parameterTokenParser : Parser<_> = wordParser |>> Parameter
+let numberLiteralTokenParser : Parser<_> =
+    let numberFormat =     NumberLiteralOptions.AllowMinusSign
+                       ||| NumberLiteralOptions.AllowFraction
+                       ||| NumberLiteralOptions.AllowExponent
+    numberLiteral numberFormat "number"
+    |>> NumberLiteral
+
+
+
 
 let allSpaces : Parser<_> = 
   (fun stream ->
@@ -66,26 +91,26 @@ let (<!>) (p: Parser<_,_>) label : Parser<_,_> =
         printfn "%A: Leaving %s (%A)" stream.Position label reply.Status
         reply
 
-let couldExpect (pleft: Parser<'a,_>) (charsEitherOr: char * char) l : Parser<'a option,_> = 
-    (fun stream ->
-        let leftchar = fst charsEitherOr
-        let rightchar = snd charsEitherOr
-        let firstChar = attempt (pchar leftchar) stream
-
-        if firstChar.Status = Ok then 
-            let leftStr = (pleft .>> pchar rightchar) stream
-            if leftStr.Status = Ok then
-                Reply(Some leftStr.Result)
-            else 
-                Reply(FatalError, leftStr.Error)
-            
-        else 
-            let secondChar = attempt (pchar rightchar) stream 
-            if secondChar.Status = Ok then 
-                Reply(None) 
-            else 
-                Reply(FatalError, messageError l)
-    )
+// let couldExpect (pleft: Parser<'a,_>) (charsEitherOr: char * char) l : Parser<'a option,_> = 
+//     (fun stream ->
+//         let leftchar = fst charsEitherOr
+//         let rightchar = snd charsEitherOr
+//         let firstChar = attempt (pchar leftchar) stream
+//
+//         if firstChar.Status = Ok then 
+//             let leftStr = (pleft .>> pchar rightchar) stream
+//             if leftStr.Status = Ok then
+//                 Reply(Some leftStr.Result)
+//             else 
+//                 Reply(FatalError, leftStr.Error)
+//             
+//         else 
+//             let secondChar = attempt (pchar rightchar) stream 
+//             if secondChar.Status = Ok then 
+//                 Reply(None) 
+//             else 
+//                 Reply(FatalError, messageError l)
+//     )
     
 let pBranch pLeftCondition pLeftBranch pRightBranch : Parser<_,_> =
     fun stream ->
@@ -98,15 +123,3 @@ let pBranch pLeftCondition pLeftBranch pRightBranch : Parser<_,_> =
         else
             pRightBranch stream
 
-let typeChoices : Parser<TypeDefinitions> = choice [
-    pstring i32Type >>. preturn I32
-    pstring i64Type >>. preturn I64
-    pstring doubleType >>. preturn Double
-    pstring floatType >>. preturn Float
-    pstring stringType >>. preturn String
-]
-
-// let rec matchThis (plist: (char * Parser<'a, _> * string) list) : Parser<'a, _> =
-//   (fun stream -> 
-//      
-//   )

@@ -9,10 +9,7 @@
     <Compile Include="BasicTypes.fs" />
     <Compile Include="LanguageExpressions.fs" />
     <Compile Include="CommonParsers.fs" />
-    <Compile Include="TypeKeywords.fs" />
     <Compile Include="StructParser.fs" />
-    <Compile Include="FunctionDefinitionParser.fs" />
-    <Compile Include="VariableDefinitionParser.fs" />
     <Compile Include="TestTwoPhase.fs" />
     <Compile Include="Program.fs" />
   </ItemGroup>

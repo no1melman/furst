@@ -1,61 +1,74 @@
 ﻿module TestTwoPhase
 
-open System
-open System.Collections.Generic
-open System.Linq
 open System.Text
 open FParsec
 open CommonParsers
+open BasicTypes
 
-type Tokens =
-  | Let
-  | Struct
-  | OpenBrace
-  | ClosedBrace
-  | Goto
-  | Assignment
-  | OpenParen
-  | ClosedParen
-  | Pipe
-  | Addition
-  | Subtraction
-  | Multiply
-  | SemiColonTerminator
-  | GreaterThan
-  | LessThan
-  | Match
-  | Type
-  | Word of string
+module List =
+  let fromPair (input: 'a * 'a) =
+    [ fst input; snd input ]
   
-type Row =
-    { Indent: int
-      Expressions: Tokens list
-      mutable Body: Row list }
-    static member Default = { Indent = -1; Expressions = []; Body = [] }
+  ()
+
+let pWhitespace =
+  skipAnyOf (seq { ' '; '\t'; '\f' })
+let pManyWhitespace1 =
+  skipMany1 pWhitespace
+let pManyWhitespace =
+  skipMany pWhitespace
+
+let typedParameterParser =
+  between enclosementOpenOperatorTokenParser enclosementClosedOperatorTokenParser (
+    pManyWhitespace
+    >>. parameterTokenParser .>> pManyWhitespace
+    .>>. typeIdentifierTokenParser .>> pManyWhitespace1
+    .>>. typeChoicesTokenParser 
+    |>> fun ((w, ti), t) -> [OpenParen; w; ti; t; ClosedParen] )
+    <?> "Expect typed parameter :: (a: string)"
+
+let singleParameterParser = 
+  parameterTokenParser |>> List.singleton
+
+let parameterDefinitionParser =
+  sepEndBy1 (attempt singleParameterParser <|> typedParameterParser) pWhitespace
+  |>> List.collect id
+ 
+let letBlockParser = 
+  (letWordTokenParser <?> "Expecting let keyword") .>> pManyWhitespace
+  .>>. (wordTokenParser <?> "Expecting variable identifier") .>> pManyWhitespace
+  .>>. opt (parameterDefinitionParser .>> pManyWhitespace)
+  .>>. opt (typeIdentifierTokenParser .>> pManyWhitespace1 .>>. typeChoicesTokenParser .>> pManyWhitespace1 |>> List.fromPair )
+  .>> pManyWhitespace .>>. assignmentSymbolTokenParser
+  |>> fun ((((letToken, variableName), maybeParameters), maybeVariableType), assignment) ->
+        let variableType = maybeVariableType |> Option.defaultValue []
+        let parameters = maybeParameters |> Option.defaultValue []
+        [ letToken; variableName; yield! parameters; yield! variableType; assignment ]
   
 let indentTokenParser =
   manySatisfy (fun c -> c = ' ' || c = '\t') |>> fun spaces -> spaces.Length
   
 let tokenParser =
   choice [
-    letWord >>% Let
-    structWord >>% Struct
-    openBraces >>% OpenBrace
-    closedBraces >>% ClosedBrace
-    gotoSymbol >>% Goto
-    assignmentSymbol >>% Assignment
-    enclosementOpenOperator >>% OpenParen
-    enclosementClosedOperator >>% ClosedParen
-    pipeSymbol >>% Pipe
-    additionSymbol >>% Addition
-    subtractionSymbol >>% Subtraction
-    multiplySymbol >>% Multiply
-    semiColonSymbol >>% SemiColonTerminator
-    greaterThanSymbol >>% GreaterThan
-    lessThanSymbol >>% LessThan
-    matchWord >>% Match
-    typeWord >>% Match
-    word |>> Word
+    letWordTokenParser
+    structWordTokenParser
+    openBracesTokenParser
+    closedBracesTokenParser
+    gotoSymbolTokenParser
+    assignmentSymbolTokenParser
+    enclosementOpenOperatorTokenParser
+    enclosementClosedOperatorTokenParser
+    pipeSymbolTokenParser
+    additionSymbolTokenParser
+    subtractionSymbolTokenParser
+    multiplySymbolTokenParser
+    semiColonSymbolTokenParser
+    greaterThanSymbolTokenParser
+    lessThanSymbolTokenParser
+    matchWordTokenParser
+    typeWordTokenParser
+    numberLiteralTokenParser
+    wordTokenParser
   ]
   
 let (<!>) (p: Parser<_,_>) label : Parser<_,_> =
@@ -65,19 +78,14 @@ let (<!>) (p: Parser<_,_>) label : Parser<_,_> =
         printfn "%A: Leaving %s (%A)" stream.Position label reply.Status
         reply
 
-let pWhitespace =
-  skipAnyOf (seq { ' '; '\t'; '\f' })
-let pManyWhitespace1 =
-  skipMany1 pWhitespace
-let pManyWhitespace =
-  skipMany pWhitespace
-
-let pExpr =
-  opt (sepEndBy1 tokenParser pManyWhitespace1)
+let pPotentialExpr =
+  (attempt letBlockParser <!> "let block") <|> (tokenParser |>> List.singleton <!> "Token parser")
+let pOptionExpr =
+  opt ((sepEndBy1 pPotentialExpr pManyWhitespace1) |>> List.collect id)
 
 let pLineExpr =
   sepEndBy1 (indentTokenParser
-             .>>. pExpr
+             .>>. pOptionExpr
              |>> fun (indent, expr) ->
                     expr
                     |> Option.map (fun e -> { Indent = indent; Expressions = e; Body = [] })
@@ -92,22 +100,29 @@ let document = """let a =
 let f = g
 let h =
   i * j
+  
+let k l =
+  l * m
+  
+let n (o: i32) =
+  o + 2
 """
 
 let maybeTokenisedLines =
   runParserOnString pLineExpr BlockScopeParserState.Default "code" document
   |> function
      | Success (lines, _, _) ->
-         lines
-         |> List.choose id
-         |> List.iter (fun line -> printfn "%A" (line))
-         Some lines
+         let parsedLines = 
+           lines
+           |> List.choose id
+         parsedLines
+         |> List.iter (fun line -> printfn "%A" line)
+         Some parsedLines
      | Failure (e,_,_) ->
          printfn "%s" e
          None
 
 let tokenisedLines = maybeTokenisedLines.Value
-
 
 let nestRows (items: Row list) =
     let rec sortViaIndent indent items =
@@ -132,44 +147,39 @@ let nestRows (items: Row list) =
         
     sortViaIndent 0 items
     
-let result = nestRows (maybeTokenisedLines.Value |> List.choose id)
+let result = nestRows maybeTokenisedLines.Value
 
 let rec rowReader (row: Row) : unit =
   let sb = StringBuilder()
   let append (s: string) = sb.Append(s) |> ignore
   
-  row.Expressions |> List.iter (
-      function
-      | Let
-      | Struct
-      | OpenBrace
-      | ClosedBrace
-      | Goto
-      | Assignment
-      | OpenParen
-      | ClosedParen
-      | Pipe
-      | Addition
-      | Subtraction
-      | Multiply
-      | SemiColonTerminator
-      | GreaterThan
-      | LessThan
-      | Match
-      | Type as t -> sprintf "%s " (t.ToString().ToLowerInvariant()) |> append
-      | Word w -> sprintf "%s " w |> append )
+  row.Expressions
+  |> List.iter (
+       function
+       | Let
+       | Struct
+       | OpenBrace
+       | ClosedBrace
+       | Goto
+       | Assignment
+       | OpenParen
+       | ClosedParen
+       | Pipe
+       | Addition
+       | Subtraction
+       | Multiply
+       | SemiColonTerminator
+       | GreaterThan
+       | LessThan
+       | Match
+       | TypeIdentifier
+       | Type as t -> sprintf "%s " (t.ToString().ToLowerInvariant()) |> append
+       | TypeDefinition t -> sprintf "%s " (t.ToString().ToLowerInvariant()) |> append
+       | Parameter w
+       | Word w -> sprintf "%s " w |> append
+       | NumberLiteral numberLiteral -> sprintf "%s " (numberLiteral.String) |> append
+       | NoToken -> ())
   
-  let indentStr = String(' ', row.Indent)
-  printfn "%s%s" indentStr (sb.ToString())
+  printfn "%s%s" (System.String(' ', row.Indent)) (sb.ToString())
   
   row.Body |> List.iter rowReader
-  
- 
-
-
-// for item in nestedItems do
-//     printfn "Indent: %d, Expressions: %A" item.Indent item.Expressions
-//     for nestedRow in item.Body do
-//         printfn "b  Indent: %d, Expressions: %A" nestedRow.Indent nestedRow.Expressions
-//         for nestedNestedRow in nestedRow.Body do
-//             printfn "a    Indent: %d, Expressions: %A" nestedNestedRow.Indent nestedNestedRow.Expressions
