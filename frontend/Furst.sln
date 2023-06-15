@@ -10,6 +10,7 @@ EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "misc", "misc", "{49B03D08-EAD5-421C-86B1-2578B54DD337}"
 	ProjectSection(SolutionItems) = preProject
 		test.fsx = test.fsx
+		aitest.fsx = aitest.fsx
 	EndProjectSection
 EndProject
 Global

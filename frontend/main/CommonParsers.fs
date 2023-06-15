@@ -20,6 +20,8 @@ let isIndentifierChar c = c <> ' ' && (isLetter c || isDigit c)
 let word : Parser<_> = many1Satisfy2 isIndentifierChar isIndentifierChar
 
 let letWord : Parser<_> = pstring "let"
+let matchWord : Parser<_> = pstring "match"
+let typeWord : Parser<_> = pstring "type"
 let structWord : Parser<_> = pstring "struct" <?> "Expecting struct"
 
 let openBraces : Parser<_> = pstring "{"
@@ -28,6 +30,14 @@ let gotoSymbol : Parser<_>  = pstring "->"
 let assignmentSymbol : Parser<_>  = pchar '='
 let enclosementOpenOperator : Parser<_>  = pstring "("
 let enclosementClosedOperator : Parser<_> = pstring ")"
+
+let pipeSymbol : Parser<_>  = pstring "|"
+let additionSymbol : Parser<_>  = pchar '+'
+let subtractionSymbol : Parser<_>  = pchar '-'
+let multiplySymbol : Parser<_>  = pchar '*'
+let greaterThanSymbol : Parser<_>  = pstring ">"
+let lessThanSymbol : Parser<_> = pstring "<"
+let semiColonSymbol : Parser<_> = pstring ";"
 
 let allSpaces : Parser<_> = 
   (fun stream ->

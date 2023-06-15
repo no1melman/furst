@@ -6,17 +6,21 @@ open StructParser
 // let documentParser =
   // spaces >>. (letWord <|> structParser) .>> spaces
 
+let res = TestTwoPhase.result
 
-let document = """
-struct GodStruct {
-  : somekindofvalue
-}
-"""
+res |> List.iter TestTwoPhase.rowReader
 
-let result = runParserOnString (spaces >>. structParser) BlockScopeParserState.Default "code" document
-
-match result with
-| Success (r, _, _) -> printfn "all good :: %A" r
-| Failure (e, _, _) -> printfn "nah we fooked :: %s" e
+//
+// let document = """
+// struct GodStruct {
+//   : somekindofvalue
+// }
+// """
+//
+// let result = runParserOnString (spaces >>. structParser) BlockScopeParserState.Default "code" document
+//
+// match result with
+// | Success (r, _, _) -> printfn "all good :: %A" r
+// | Failure (e, _, _) -> printfn "nah we fooked :: %s" e
 
 printfn "Hello from F#"
