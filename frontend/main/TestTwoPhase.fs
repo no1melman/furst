@@ -108,31 +108,31 @@ let maybeTokenisedLines =
 
 let tokenisedLines = maybeTokenisedLines.Value
 
+
 let nestRows (items: Row list) =
     let rec sortViaIndent indent items =
       match items with
       | [ _ ] | [  ] -> items
       | _ ->
-        let mutable blockScope = []
-        let mutable blockScoped = []
-        for item in items do
-          if item.Indent <> indent then 
-            blockScope <- blockScope @ [ item ]
-          else
-            blockScoped <- blockScoped @ [ { item with Body = blockScope @ item.Body } ]
-            blockScope <- []
+        // start of with blockScope
+        ([], [])
+        |> List.foldBack (fun item (currentScope, completeScope) ->
+              // while the indents are not at the current level
+              if item.Indent <> indent then
+                  // store them in the current scope
+                  item :: currentScope, completeScope
+              else
+                  // when we hit the next item with same indent
+                  // everything from the completeScope should now be nested in its body
+                  [], { item with Body = currentScope @ item.Body } :: completeScope ) items 
+        |> snd
+        |> List.map (fun item ->
+             // keep drilling down until or nested bodies have been sorted.
+             { item with Body = sortViaIndent (indent + 2) item.Body })
         
-        // I guess once this is done, we can then go through each body and check it's indentation
-        
-        let mutable final = []
-        for item in blockScoped do
-          final <- final @ [ { item with Body = sortViaIndent (indent + 2) item.Body } ]
-        
-        final |> List.rev
-    
     sortViaIndent 0 items
-// Usage
-let result = nestRows (maybeTokenisedLines.Value |> List.choose id |> List.rev)
+    
+let result = nestRows (maybeTokenisedLines.Value |> List.choose id)
 
 let rec rowReader (row: Row) : unit =
   let sb = StringBuilder()
