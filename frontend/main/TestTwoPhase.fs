@@ -44,7 +44,32 @@ let letBlockParser =
         let variableType = maybeVariableType |> Option.defaultValue []
         let parameters = maybeParameters |> Option.defaultValue []
         [ letToken; variableName; yield! parameters; yield! variableType; assignment ]
+
+let fieldParser = 
+  spaces >>. (wordTokenParser .>> spaces <?> "Expecting a field name")
+  .>>. (typeIdentifierTokenParser <?> "Expecting field separator (:)")
+  .>> spaces1 .>>. (typeChoicesTokenParser <?> "Expecting field type")
+  |>> fun ((a, b), c) ->
+    [a; b; c]
   
+let structContent =
+  between
+    openBracesTokenParser closedBracesTokenParser
+    (sepEndBy fieldParser spaces1)
+  |>> fun fields ->
+        let flatten = fields |> List.collect id
+        [ OpenBrace; yield! flatten; ClosedBrace ]    
+   
+let emptyBraces =
+  openBracesTokenParser .>> spaces .>>. closedBracesTokenParser
+  |>> List.fromPair
+
+let structParser =
+  let structName = wordTokenParser <?> "Expecting a struct name" 
+  let structDeclaration = structWordTokenParser .>>. (spaces1 >>. structName .>> spaces1) |>> List.fromPair
+  structDeclaration .>>. (attempt emptyBraces <|> structContent)
+  |>> fun (a, c) -> a @ c
+
 let indentTokenParser =
   manySatisfy (fun c -> c = ' ' || c = '\t') |>> fun spaces -> spaces.Length
   
@@ -81,7 +106,7 @@ let (<!>) (p: Parser<_,_>) label : Parser<_,_> =
 let pPotentialExpr =
   (attempt letBlockParser <!> "let block") <|> (tokenParser |>> List.singleton <!> "Token parser")
 let pOptionExpr =
-  opt ((sepEndBy1 pPotentialExpr pManyWhitespace1) |>> List.collect id)
+  opt (attempt structParser <|> (sepEndBy1 pPotentialExpr pManyWhitespace1 |>> List.collect id))
 
 let pLineExpr =
   sepEndBy1 (indentTokenParser
@@ -96,7 +121,11 @@ let document = """let a =
   let c =
     d
   e
-  
+
+struct o {
+  callum: string
+}
+
 let f = g
 let h =
   i * j
@@ -158,12 +187,8 @@ let rec rowReader (row: Row) : unit =
        function
        | Let
        | Struct
-       | OpenBrace
-       | ClosedBrace
        | Goto
        | Assignment
-       | OpenParen
-       | ClosedParen
        | Pipe
        | Addition
        | Subtraction
@@ -175,10 +200,15 @@ let rec rowReader (row: Row) : unit =
        | TypeIdentifier
        | Type as t -> sprintf "%s " (t.ToString().ToLowerInvariant()) |> append
        | TypeDefinition t -> sprintf "%s " (t.ToString().ToLowerInvariant()) |> append
-       | Parameter w
+       | Parameter p -> sprintf "(Parameter %s) " p |> append
        | Word w -> sprintf "%s " w |> append
        | NumberLiteral numberLiteral -> sprintf "%s " (numberLiteral.String) |> append
-       | NoToken -> ())
+       | NoToken -> ()
+       | OpenBrace -> "{ " |> append
+       | ClosedBrace -> "} " |> append
+       | OpenParen -> "( " |> append
+       | ClosedParen -> ") " |> append
+       )
   
   printfn "%s%s" (System.String(' ', row.Indent)) (sb.ToString())
   
