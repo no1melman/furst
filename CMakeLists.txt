@@ -6,7 +6,7 @@ project(Furst
   LANGUAGES CXX C)
 
 
-set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_EXPORT_COMPILE_COMMANDS 1)
 
 # add_link_options(-fuse-ld=lld)
@@ -37,6 +37,8 @@ endif()
 # set(LLVM_INSTALL_DIR "" CACHE PATH "LLVM installation directory")
 # list(APPEND CMAKE_PREFIX_PATH "${LLVM_INSTALL_DIR}/lib/cmake/llvm/")
 find_package(LLVM REQUIRED CONFIG)
+find_package(LLD REQUIRED CONFIG)
+find_program(LLD_PROGRAM REQUIRED NAMES lld)
 
 message(STATUS "Found LLVM ${LLVM_PACKAGE_VERSION}")
 message(STATUS "Using LLVMConfig.cmake in: ${LLVM_DIR}")

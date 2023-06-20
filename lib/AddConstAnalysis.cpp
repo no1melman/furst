@@ -1,6 +1,6 @@
 #include "AddConst.h"
-#include "llvm/Support/Casting.h"
-#include "llvm/IR/Constants.h"
+#include <llvm/Support/Casting.h>
+#include <llvm/IR/Constants.h>
 
 using namespace llvm;
 namespace addconst {

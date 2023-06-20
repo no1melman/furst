@@ -1,5 +1,5 @@
 # This file sets up a CMakeCache for a LLVM toolchain build
-set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD 20)
 
 #Enable LLVM projects and runtimes
 set(LLVM_ENABLE_PROJECTS "clang;clang-tools-extra;lld;lldb;mlir" CACHE STRING "")
