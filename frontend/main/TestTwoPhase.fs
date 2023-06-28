@@ -34,23 +34,24 @@ let parameterDefinitionParser =
   sepEndBy1 (attempt singleParameterParser <|> typedParameterParser) pWhitespace
   |>> List.collect id
  
-let letBlockParser = 
-  (letWordTokenParser <?> "Expecting let keyword") .>> pManyWhitespace
-  .>>. (wordTokenParser <?> "Expecting variable identifier") .>> pManyWhitespace
-  .>>. opt (parameterDefinitionParser .>> pManyWhitespace)
-  .>>. opt (typeIdentifierTokenParser .>> pManyWhitespace1 .>>. typeChoicesTokenParser .>> pManyWhitespace1 |>> List.fromPair )
-  .>> pManyWhitespace .>>. assignmentSymbolTokenParser
-  |>> fun ((((letToken, variableName), maybeParameters), maybeVariableType), assignment) ->
+let letBlockParser =
+  pipe5
+    (letWordTokenParser <?> "Expecting let keyword" .>> pManyWhitespace)
+    (wordTokenParser <?> "Expecting variable identifier" .>> pManyWhitespace)
+    (opt (parameterDefinitionParser .>> pManyWhitespace))
+    (opt (typeIdentifierTokenParser .>> pManyWhitespace1 .>>. typeChoicesTokenParser .>> pManyWhitespace1 |>> List.fromPair ) .>> pManyWhitespace)
+    assignmentSymbolTokenParser
+    (fun letToken variableName maybeParameters maybeVariableType assignment ->
         let variableType = maybeVariableType |> Option.defaultValue []
         let parameters = maybeParameters |> Option.defaultValue []
-        [ letToken; variableName; yield! parameters; yield! variableType; assignment ]
+        [ letToken; variableName; yield! parameters; yield! variableType; assignment ])
 
 let fieldParser = 
-  spaces >>. (wordTokenParser .>> spaces <?> "Expecting a field name")
-  .>>. (typeIdentifierTokenParser <?> "Expecting field separator (:)")
-  .>> spaces1 .>>. (typeChoicesTokenParser <?> "Expecting field type")
-  |>> fun ((a, b), c) ->
-    [a; b; c]
+  pipe3
+    (spaces >>. wordTokenParser .>> spaces <?> "Expecting a field name")
+    (typeIdentifierTokenParser .>> spaces1 <?> "Expecting field separator (:)")
+    (typeChoicesTokenParser <?> "Expecting field type")
+    (fun a b c -> [a; b; c])
   
 let structContent =
   between
@@ -66,10 +67,12 @@ let emptyBraces =
 
 let structParser =
   let structName = wordTokenParser <?> "Expecting a struct name" 
-  let structDeclaration = structWordTokenParser .>>. (spaces1 >>. structName .>> spaces1) |>> List.fromPair
-  structDeclaration .>>. (attempt emptyBraces <|> structContent)
-  |>> fun (a, c) -> a @ c
-
+  pipe3
+    structWordTokenParser
+    (spaces1 >>. structName .>> spaces1)
+    (attempt emptyBraces <|> structContent)
+    (fun a b c -> [ a; b; yield! c ])
+    
 let indentTokenParser =
   manySatisfy (fun c -> c = ' ' || c = '\t') |>> fun spaces -> spaces.Length
   
@@ -101,12 +104,32 @@ let (<!>) (p: Parser<_,_>) label : Parser<_,_> =
         printfn "%A: Entering %s" stream.Position label
         let reply = p stream
         printfn "%A: Leaving %s (%A)" stream.Position label reply.Status
+        if isNull reply.Error |> not then 
+          reply.Error.Head
+          |> function
+              | ExpectedString s
+              | ExpectedStringCI s
+              | Unexpected s
+              | UnexpectedString s
+              | UnexpectedStringCI s
+              | Message s
+              | Expected s -> printfn "%s" s
+              | l -> printfn "Was unknown error"
         reply
 
 let pPotentialExpr =
   (attempt letBlockParser <!> "let block") <|> (tokenParser |>> List.singleton <!> "Token parser")
-let pOptionExpr =
-  opt (attempt structParser <|> (sepEndBy1 pPotentialExpr pManyWhitespace1 |>> List.collect id))
+  
+let fakeTokenListOption _ : Tokens list option =
+  Some []
+  
+let pOptionExpr : Parser<Tokens list option> =
+  pMatch [
+    (structWordTokenParser |>> fakeTokenListOption, (attempt structParser |>> Some)) 
+    (noneOf (seq { '\n' }) |>> fakeTokenListOption, (sepEndBy1 pPotentialExpr pManyWhitespace1 |>> List.collect id) |>> Some)
+    (anyOf (seq { '\n' }) |>> fakeTokenListOption, preturn None)
+    (eof |>> fakeTokenListOption, preturn None)
+  ] <!> "Match Block"
 
 let pLineExpr =
   sepEndBy1 (indentTokenParser
@@ -126,7 +149,7 @@ struct o {
   callum: string
 }
 
-let f = g
+let f = 
 let h =
   i * j
   

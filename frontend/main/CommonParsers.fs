@@ -112,14 +112,38 @@ let (<!>) (p: Parser<_,_>) label : Parser<_,_> =
 //                 Reply(FatalError, messageError l)
 //     )
     
-let pBranch pLeftCondition pLeftBranch pRightBranch : Parser<_,_> =
+let pBranch pLeftCondition (pLeftBranch: Parser<_,_>) pRightBranch : Parser<_,_> =
     fun stream ->
         printfn "%A" (stream.Peek())
         let mutable streamState = stream.State
         let leftBranchResult = (attempt pLeftCondition) stream
         stream.BacktrackTo(&streamState)
+
         if leftBranchResult.Status = Ok then
+            
             pLeftBranch stream
         else
             pRightBranch stream
-
+            
+let pMatch (branches: (Parser<_,_> * Parser<_,_>) list) : Parser<_,_> =
+    fun stream ->
+        let rec goingThroughList list =
+            match list with
+            | (cond, branch) :: tail ->
+                let mutable streamState = stream.State
+                let condResult = (attempt cond) stream
+                stream.BacktrackTo(&streamState)
+                
+                if condResult.Status = Error then
+                    goingThroughList tail
+                elif condResult.Status = Ok then
+                    branch stream
+                else // this is fatal error happening
+                    condResult
+            | [] -> Reply(FatalError, messageError "No branches met the parsers listed")
+        
+        let reply = goingThroughList branches
+        if reply.Status = Error then
+            Reply(FatalError, reply.Error)
+        else
+            reply 

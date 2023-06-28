@@ -8,3 +8,4 @@ deps_build/
 [Oo]bj/
 out/
 CMakeFiles/
+.cache/

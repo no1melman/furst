@@ -35,15 +35,39 @@ else()
 endif()
 
 # set(LLVM_INSTALL_DIR "" CACHE PATH "LLVM installation directory")
-# list(APPEND CMAKE_PREFIX_PATH "${LLVM_INSTALL_DIR}/lib/cmake/llvm/")
-find_package(LLVM REQUIRED CONFIG)
-find_package(LLD REQUIRED CONFIG)
-find_program(LLD_PROGRAM REQUIRED NAMES lld)
+set(LLVM_INSTALL_DIR "D:/code/llvm-project/build" CACHE PATH "LLVM installation directory")
+list(APPEND CMAKE_PREFIX_PATH "${LLVM_INSTALL_DIR}/lib/cmake/llvm/")
+list(APPEND CMAKE_PREFIX_PATH "${LLVM_INSTALL_DIR}/lib/cmake/mlir")
+find_package(LLVM 17 REQUIRED CONFIG)
+find_package(MLIR REQUIRED CONFIG)
+# find_package(LLD REQUIRED CONFIG)
+# find_program(LLD_PROGRAM REQUIRED NAMES lld)
+#
+# find_package(Clang REQUIRED CONFIG)
 
 message(STATUS "Found LLVM ${LLVM_PACKAGE_VERSION}")
 message(STATUS "Using LLVMConfig.cmake in: ${LLVM_DIR}")
+message(STATUS "Using MLIRConfig.cmake in: ${MLIR_DIR}")
+# message(STATUS "Using LLDConfig.cmake in: ${LLD_DIR}")
+# message(STATUS "Using CLANGConfig.cmake in: ${Clang_DIR}")
 
-include_directories(${LLVM_INCLUDE_DIRS})
+message(STATUS "Found LLVM Include ${LLVM_INCLUDE_DIRS}")
+message(STATUS "Found LLVM Library ${LLVM_LIBRARY_DIRS}")
+message(STATUS "Found LLVM Definitions ${LLVM_DEFINITIONS}")
+
+set(LLVM_RUNTIME_OUTPUT_INTDIR ${CMAKE_BINARY_DIR}/bin)
+set(LLVM_LIBRARY_OUTPUT_INTDIR ${CMAKE_BINARY_DIR}/lib)
+set(MLIR_BINARY_DIR ${CMAKE_BINARY_DIR})
+
+list(APPEND CMAKE_MODULE_PATH "${MLIR_DIR}")
+list(APPEND CMAKE_MODULE_PATH "${LLVM_DIR}")
+# list(APPEND CMAKE_MODULE_PATH "${LLD_DIR}")
+# list(APPEND CMAKE_MODULE_PATH "${Clang_DIR}")
+
+include(AddLLVM)
+include(AddMLIR)
+
+include_directories(SYSTEM ${LLVM_INCLUDE_DIRS})
 link_directories(${LLVM_LIBRARY_DIRS})
 add_definitions(${LLVM_DEFINITIONS})
 
@@ -52,4 +76,16 @@ if(NOT LLVM_ENABLE_RTTI)
 endif()
 
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY "${PROJECT_BINARY_DIR}/lib")
+
+include_directories(${INCLUDE_DIR})
+add_executable(furstc)
 add_subdirectory(lib)
+
+# Now build our tools
+
+# Find the libraries that correspond to the LLVM components
+# that we wish to use
+llvm_map_components_to_libnames(llvm_libs support core irreader)
+
+# Link against LLVM libraries
+target_link_libraries(furstc ${llvm_libs})
