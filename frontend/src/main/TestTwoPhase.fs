@@ -173,6 +173,8 @@ let maybeTokenisedLines =
      | Failure (e,_,_) ->
          printfn "%s" e
          None
+         
+
 
 let tokenisedLines = maybeTokenisedLines.Value
 
@@ -198,6 +200,17 @@ let nestRows (items: Row list) =
              { item with Body = sortViaIndent (indent + 2) item.Body })
         
     sortViaIndent 0 items
+    
+let createAST docName code =
+  runParserOnString pLineExpr BlockScopeParserState.Default docName code
+  |> function
+     | Success (lines, _, _) ->
+         let parsedLines = 
+           lines
+           |> List.choose id
+         Result.Ok (parsedLines |> nestRows)
+     | Failure (e,_,_) ->
+         Result.Error e
     
 let result = nestRows maybeTokenisedLines.Value
 
