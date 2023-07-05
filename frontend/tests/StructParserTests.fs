@@ -8,88 +8,111 @@ let createUserDefined = UserDefined >> TypeDefinition
 
 [<Fact>]
 let ``Struct with field should pass`` () =
-  let document = """
+    let document =
+        """
   struct GodStruct {
     name: somekindofvalue
   }
   """
-  
-  ParserHelper.testParser structParser document ignore
+
+    ParserHelper.testParser structParser document ignore
 
 [<Fact>]
 let ``Struct with multiple fields should pass`` () =
-  let document = """
+    let document =
+        """
   struct GodStruct {
     name: somekindofvalue
     someotherName: somestuff
     further: things 
   }
   """
-  
-  ParserHelper.testParser structParser document (fun s -> 
-    Assert.NotEmpty(s.Fields)
-    s.Type
-    |> function
-       | Word t -> Assert.Equal("GodStruct", t)
-       | _ -> invalidArg "Struct Type" "Needs to be TypeDefinition"
 
-    Assert.True(s.Fields |> List.contains { FieldName = Word "name"; FieldValue = createUserDefined "somekindofvalue" })
-    Assert.True(s.Fields |> List.contains { FieldName = Word "someotherName"; FieldValue = createUserDefined "somestuff" })
-    Assert.True(s.Fields |> List.contains { FieldName = Word "further"; FieldValue = createUserDefined "things" })
-  )
+    ParserHelper.testParser structParser document (fun s ->
+        Assert.NotEmpty(s.Fields)
+
+        s.Type
+        |> function
+            | Word t -> Assert.Equal("GodStruct", t)
+            | _ -> invalidArg "Struct Type" "Needs to be TypeDefinition"
+
+        Assert.True(
+            s.Fields
+            |> List.contains
+                { FieldName = Word "name"
+                  FieldValue = createUserDefined "somekindofvalue" }
+        )
+
+        Assert.True(
+            s.Fields
+            |> List.contains
+                { FieldName = Word "someotherName"
+                  FieldValue = createUserDefined "somestuff" }
+        )
+
+        Assert.True(
+            s.Fields
+            |> List.contains
+                { FieldName = Word "further"
+                  FieldValue = createUserDefined "things" }
+        ))
 
 
 [<Fact>]
 let ``Struct without field should pass`` () =
-  let document = """
+    let document =
+        """
   struct GodStruct {
   }
   """
-  
-  ParserHelper.testParser structParser document (fun s -> 
-    Assert.Empty(s.Fields)
-    s.Type
-    |> function
-       | Word t -> Assert.Equal("GodStruct", t)
-       | _ -> invalidArg "Struct Type" "Needs to be TypeDefinition"
-  )
+
+    ParserHelper.testParser structParser document (fun s ->
+        Assert.Empty(s.Fields)
+
+        s.Type
+        |> function
+            | Word t -> Assert.Equal("GodStruct", t)
+            | _ -> invalidArg "Struct Type" "Needs to be TypeDefinition")
 
 [<Fact>]
 let ``Struct without name should fail`` () =
-  let document = """
+    let document =
+        """
   struct {
   }
   """
-  
-  ParserHelper.failParser structParser document (fun e -> Assert.True(e.Contains("Expecting a struct name")))
+
+    ParserHelper.failParser structParser document (fun e -> Assert.True(e.Contains("Expecting a struct name")))
 
 [<Fact>]
 let ``Struct without field name should fail`` () =
-  let document = """
+    let document =
+        """
   struct GodStruct {
     : value
   }
   """
 
-  ParserHelper.failParser structParser document (fun e -> Assert.True(e.Contains("Expecting a field name")))
+    ParserHelper.failParser structParser document (fun e -> Assert.True(e.Contains("Expecting a field name")))
 
 [<Fact>]
 let ``Struct without field type should fail`` () =
-  let document = """
+    let document =
+        """
   struct GodStruct {
     name :
   }
   """
 
-  ParserHelper.failParser structParser document (fun e -> Assert.True(e.Contains("Expecting field type")))
+    ParserHelper.failParser structParser document (fun e -> Assert.True(e.Contains("Expecting field type")))
 
 [<Fact>]
 let ``Struct without field separator should fail`` () =
-  let document = """
+    let document =
+        """
   struct GodStruct {
     name value
   }
   """
 
-  ParserHelper.failParser structParser document (fun e -> Assert.True(e.Contains("Expecting field separator (:)")))
-
+    ParserHelper.failParser structParser document (fun e -> Assert.True(e.Contains("Expecting field separator (:)")))

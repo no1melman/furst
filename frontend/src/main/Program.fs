@@ -4,12 +4,13 @@ open CommonParsers
 open StructParser
 
 // let documentParser =
-  // spaces >>. (letWord <|> structParser) .>> spaces
+// spaces >>. (letWord <|> structParser) .>> spaces
 
 let res = TestTwoPhase.result
 
 res |> List.iter TestTwoPhase.rowReader
 
+let thing = "what"
 //
 // let document = """
 // struct GodStruct {

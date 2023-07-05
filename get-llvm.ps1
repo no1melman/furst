@@ -54,11 +54,11 @@ function PromptYesNoQuestion {
     $response = Read-Host -Prompt $Question
 
     if ([string]::IsNullOrWhiteSpace($response) -or $response -eq "Y" -or $response -eq "y") {
-        Write-Host "$Question... yes"
+        Write-Host -NoNewline "... yes"
         return $true
     }
     else {
-        Write-Host "$Question... no"
+        Write-Host -NoNewline "... no"
         return $false
     }
 }
@@ -92,13 +92,13 @@ $shouldPrepare = PromptYesNoQuestion -Question $continuePrepareQuestion
 
 if ($shouldPrepare) {
     # definitely just a windows thing 
-    # -Thost=x64 ` 
+    # -Thost=x64 `
     
     # potentially just a windows thing
-    # -DLLVM_TARGETS_TO_BUILD="host" ` 
+    # -DLLVM_TARGETS_TO_BUILD="host" `
 
     # potentially won't work on windows
-    # -DLLVM_ENABLE_LLD=ON ` 
+    # -DLLVM_ENABLE_LLD=ON `
     
     # potentially just a windows thing
     # -DLLVM_ENABLE_ASSERTIONS=ON 
@@ -109,6 +109,7 @@ if ($shouldPrepare) {
     -G "Visual Studio 17 2022" `
     -DCMAKE_BUILD_TYPE=Release `
     -Thost=x64 `
+    -DCMAKE_CONFIGURATION_TYPES=Release `
     -DLLVM_TARGETS_TO_BUILD="host" `
     -DLLVM_ENABLE_PROJECTS="clang;clang-tools-extra;lld;lldb;mlir" `
     -DLLVM_ENABLE_LLD=ON `
@@ -125,7 +126,7 @@ $shouldBuild = PromptYesNoQuestion -Question $continueBuildQuestion
 if ($shouldBuild) {
   # Code to execute if the user chooses to continue
   Write-Host "Continuing..."
-  cmake --build . --target install --parallel
+  cmake --build . --target ALL_BUILD --parallel
 } else {
   # Code to execute if the user chooses not to continue
   Write-Host "Exiting..."
