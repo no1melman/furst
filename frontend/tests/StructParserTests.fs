@@ -33,27 +33,27 @@ let ``Struct with multiple fields should pass`` () =
 
         s.Type
         |> function
-            | Word t -> Assert.Equal("GodStruct", t)
+            | Name t -> Assert.Equal("GodStruct", t)
             | _ -> invalidArg "Struct Type" "Needs to be TypeDefinition"
 
         Assert.True(
             s.Fields
             |> List.contains
-                { FieldName = Word "name"
+                { FieldName = Name "name"
                   FieldValue = createUserDefined "somekindofvalue" }
         )
 
         Assert.True(
             s.Fields
             |> List.contains
-                { FieldName = Word "someotherName"
+                { FieldName = Name "someotherName"
                   FieldValue = createUserDefined "somestuff" }
         )
 
         Assert.True(
             s.Fields
             |> List.contains
-                { FieldName = Word "further"
+                { FieldName = Name "further"
                   FieldValue = createUserDefined "things" }
         ))
 
@@ -71,7 +71,7 @@ let ``Struct without field should pass`` () =
 
         s.Type
         |> function
-            | Word t -> Assert.Equal("GodStruct", t)
+            | Name t -> Assert.Equal("GodStruct", t)
             | _ -> invalidArg "Struct Type" "Needs to be TypeDefinition")
 
 [<Fact>]

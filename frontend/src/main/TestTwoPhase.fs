@@ -101,9 +101,9 @@ let tokenParser =
   
 let (<!>) (p: Parser<_,_>) label : Parser<_,_> =
     fun stream ->
-        printfn "%A: Entering %s" stream.Position label
+        // printfn "%A: Entering %s" stream.Position label
         let reply = p stream
-        printfn "%A: Leaving %s (%A)" stream.Position label reply.Status
+        // printfn "%A: Leaving %s (%A)" stream.Position label reply.Status
         if isNull reply.Error |> not then 
           reply.Error.Head
           |> function
@@ -173,8 +173,6 @@ let maybeTokenisedLines =
      | Failure (e,_,_) ->
          printfn "%s" e
          None
-         
-
 
 let tokenisedLines = maybeTokenisedLines.Value
 
@@ -212,7 +210,10 @@ let createAST docName code =
      | Failure (e,_,_) ->
          Result.Error e
     
-let result = nestRows maybeTokenisedLines.Value
+let result =
+  let a = nestRows maybeTokenisedLines.Value
+  printfn "Done"
+  a
 
 let rec rowReader (row: Row) : unit =
   let sb = StringBuilder()
@@ -237,7 +238,7 @@ let rec rowReader (row: Row) : unit =
        | Type as t -> sprintf "%s " (t.ToString().ToLowerInvariant()) |> append
        | TypeDefinition t -> sprintf "%s " (t.ToString().ToLowerInvariant()) |> append
        | Parameter p -> sprintf "(Parameter %s) " p |> append
-       | Word w -> sprintf "%s " w |> append
+       | Name w -> sprintf "%s " w |> append
        | NumberLiteral numberLiteral -> sprintf "%s " (numberLiteral.String) |> append
        | NoToken -> ()
        | OpenBrace -> "{ " |> append

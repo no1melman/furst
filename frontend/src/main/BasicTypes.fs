@@ -11,6 +11,8 @@ type TypeDefinitions =
   | Inferred
   | UserDefined of string
 
+type WordToken = Word of string
+
 type Tokens =
   | Let
   | Struct
@@ -31,7 +33,7 @@ type Tokens =
   | Type
   | TypeDefinition of TypeDefinitions
   | TypeIdentifier
-  | Word of string
+  | Name of WordToken
   | Parameter of string
   | NumberLiteral of NumberLiteral
   | NoToken

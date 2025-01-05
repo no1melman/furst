@@ -20,11 +20,11 @@ module Generator =
     
     let rec createFunc (func: Row) =
         let hopefullyName =
-            mapToken func.Expressions (function Word _ -> true | _ -> false)
+            mapToken func.Expressions (function Name _ -> true | _ -> false)
         
         hopefullyName
         |> Option.map (function
-            | Word exprName ->
+            | Name exprName ->
                 Ok $"func.func %s{exprName} {{\n\n}}"
             | _ -> Error "Developer error, mapToken not working correctly")
         |> Option.defaultValue (Error "Couldn't find functions name")

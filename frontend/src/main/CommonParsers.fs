@@ -52,7 +52,7 @@ let typeChoicesTokenParser : Parser<_> = choice [
 ]
 let typeIdentifierTokenParser : Parser<_> = pchar ':' >>% TypeIdentifier
 
-let wordTokenParser : Parser<_> = wordParser |>> Word
+let wordTokenParser : Parser<_> = wordParser |>> Name
 let parameterTokenParser : Parser<_> = wordParser |>> Parameter
 let numberLiteralTokenParser : Parser<_> =
     let numberFormat =     NumberLiteralOptions.AllowMinusSign
