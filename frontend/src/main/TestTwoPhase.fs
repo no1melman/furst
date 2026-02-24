@@ -19,15 +19,16 @@ let pManyWhitespace =
   skipMany pWhitespace
 
 let typedParameterParser =
-  between enclosementOpenOperatorTokenParser enclosementClosedOperatorTokenParser (
-    pManyWhitespace
-    >>. parameterTokenParser .>> pManyWhitespace
-    .>>. typeIdentifierTokenParser .>> pManyWhitespace1
-    .>>. typeChoicesTokenParser 
-    |>> fun ((w, ti), t) -> [OpenParen; w; ti; t; ClosedParen] )
+  pipe5
+    enclosementOpenOperatorTokenParser
+    (pManyWhitespace >>. parameterTokenParser .>> pManyWhitespace)
+    (typeIdentifierTokenParser .>> pManyWhitespace1)
+    typeChoicesTokenParser
+    enclosementClosedOperatorTokenParser
+    (fun openP param ti typ closeP -> [openP; param; ti; typ; closeP])
     <?> "Expect typed parameter :: (a: string)"
 
-let singleParameterParser = 
+let singleParameterParser =
   parameterTokenParser |>> List.singleton
 
 let parameterDefinitionParser =
@@ -54,12 +55,13 @@ let fieldParser =
     (fun a b c -> [a; b; c])
   
 let structContent =
-  between
-    openBracesTokenParser closedBracesTokenParser
+  pipe3
+    openBracesTokenParser
     (sepEndBy fieldParser spaces1)
-  |>> fun fields ->
+    closedBracesTokenParser
+    (fun openB fields closeB ->
         let flatten = fields |> List.collect id
-        [ OpenBrace; yield! flatten; ClosedBrace ]    
+        [ openB; yield! flatten; closeB ])    
    
 let emptyBraces =
   openBracesTokenParser .>> spaces .>>. closedBracesTokenParser
@@ -120,10 +122,10 @@ let (<!>) (p: Parser<_,_>) label : Parser<_,_> =
 let pPotentialExpr =
   (attempt letBlockParser <!> "let block") <|> (tokenParser |>> List.singleton <!> "Token parser")
   
-let fakeTokenListOption _ : Tokens list option =
+let fakeTokenListOption _ : TokenWithMetadata list option =
   Some []
-  
-let pOptionExpr : Parser<Tokens list option> =
+
+let pOptionExpr : Parser<TokenWithMetadata list option> =
   pMatch [
     (structWordTokenParser |>> fakeTokenListOption, (attempt structParser |>> Some)) 
     (noneOf (seq { '\n' }) |>> fakeTokenListOption, (sepEndBy1 pPotentialExpr pManyWhitespace1 |>> List.collect id) |>> Some)
@@ -218,10 +220,10 @@ let result =
 let rec rowReader (row: Row) : unit =
   let sb = StringBuilder()
   let append (s: string) = sb.Append(s) |> ignore
-  
+
   row.Expressions
-  |> List.iter (
-       function
+  |> List.iter (fun tokenWithMeta ->
+       match tokenWithMeta.Token with
        | Let
        | Struct
        | Goto
@@ -238,7 +240,7 @@ let rec rowReader (row: Row) : unit =
        | Type as t -> sprintf "%s " (t.ToString().ToLowerInvariant()) |> append
        | TypeDefinition t -> sprintf "%s " (t.ToString().ToLowerInvariant()) |> append
        | Parameter p -> sprintf "(Parameter %s) " p |> append
-       | Name w -> sprintf "%s " w |> append
+       | Name (Word w) -> sprintf "%s " w |> append
        | NumberLiteral numberLiteral -> sprintf "%s " (numberLiteral.String) |> append
        | NoToken -> ()
        | OpenBrace -> "{ " |> append

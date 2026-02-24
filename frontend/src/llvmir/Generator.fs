@@ -6,25 +6,25 @@ open BasicTypes
 
 module Generator =
     
-    let mapToken (expressions: Tokens list) (matcher: Tokens -> bool) =
+    let mapToken (expressions: TokenWithMetadata list) (matcher: Tokens -> bool) =
         let rec searchTokens tokens rtnToken =
             match tokens with
             | [] -> rtnToken
             | head :: tail ->
-                if matcher head then
-                    Some head
+                if matcher head.Token then
+                    Some head.Token
                 else
                     searchTokens tail None
-        
+
         searchTokens expressions None
-    
+
     let rec createFunc (func: Row) =
         let hopefullyName =
             mapToken func.Expressions (function Name _ -> true | _ -> false)
         
         hopefullyName
         |> Option.map (function
-            | Name exprName ->
+            | Name (Word exprName) ->
                 Ok $"func.func %s{exprName} {{\n\n}}"
             | _ -> Error "Developer error, mapToken not working correctly")
         |> Option.defaultValue (Error "Couldn't find functions name")

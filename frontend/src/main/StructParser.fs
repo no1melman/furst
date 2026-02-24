@@ -7,13 +7,13 @@ open BasicTypes
 
 type ParsedField =
   {
-    FieldName: Tokens
-    FieldValue: Tokens
+    FieldName: TokenWithMetadata
+    FieldValue: TokenWithMetadata
   }
 
 type ParsedStruct =
   {
-    Type: Tokens
+    Type: TokenWithMetadata
     Fields: ParsedField list
   }
 

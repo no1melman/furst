@@ -38,9 +38,19 @@ type Tokens =
   | NumberLiteral of NumberLiteral
   | NoToken
 
+type Line = Line of int64
+type Column = Column of int64
+type TokenLength = TokenLength of int
+
+type TokenWithMetadata =
+    { Line: Line
+      Column: Column
+      Length: TokenLength
+      Token: Tokens }
+
 type Row =
     { Indent: int
-      Expressions: Tokens list
+      Expressions: TokenWithMetadata list
       Body: Row list }
 
 

@@ -19,47 +19,55 @@ type Parser<'t> = Parser<'t, BlockScopeParserState>
 let isIndentifierChar c = c <> ' ' && (isLetter c || isDigit c)
 let wordParser = many1Satisfy2 isIndentifierChar isIndentifierChar
 
+// Helper to capture position metadata for tokens
+let withPosition (p: Parser<Tokens, _>) : Parser<TokenWithMetadata, _> =
+  pipe3 getPosition p getPosition (fun startPos token endPos ->
+    let length = int (endPos.Column - startPos.Column)
+    { Line = Line startPos.Line
+      Column = Column startPos.Column
+      Length = TokenLength length
+      Token = token })
+
 let i32Type = "i32"
 let i64Type = "i64"
 let doubleType = "double"
 let floatType = "float"
 let stringType = "string"
 
-let letWordTokenParser : Parser<_> = pstring "let" >>% Let
-let structWordTokenParser : Parser<_> = pstring "struct" <?> "Expecting struct" >>% Struct
-let openBracesTokenParser : Parser<_> = pstring "{" >>% OpenBrace
-let closedBracesTokenParser : Parser<_> = pstring "}" >>% ClosedBrace
-let gotoSymbolTokenParser : Parser<_>  = pstring "->" >>% Goto
-let assignmentSymbolTokenParser : Parser<_>  = pchar '=' >>% Assignment
-let enclosementOpenOperatorTokenParser : Parser<_>  = pstring "(" >>% OpenParen
-let enclosementClosedOperatorTokenParser : Parser<_> = pstring ")" >>% ClosedParen
-let pipeSymbolTokenParser : Parser<_>  = pstring "|" >>% Pipe
-let additionSymbolTokenParser : Parser<_>  = pchar '+' >>% Addition
-let subtractionSymbolTokenParser : Parser<_>  = pchar '-' >>% Subtraction
-let multiplySymbolTokenParser : Parser<_>  = pchar '*' >>% Multiply
-let semiColonSymbolTokenParser : Parser<_> = pstring ";" >>% SemiColonTerminator
-let greaterThanSymbolTokenParser : Parser<_>  = pstring ">" >>% GreaterThan
-let lessThanSymbolTokenParser : Parser<_> = pstring "<" >>% LessThan
-let matchWordTokenParser : Parser<_> = pstring "match" >>% Match
-let typeWordTokenParser : Parser<_> = pstring "type" >>% Type
-let typeChoicesTokenParser : Parser<_> = choice [
+let letWordTokenParser : Parser<_> = withPosition (pstring "let" >>% Let)
+let structWordTokenParser : Parser<_> = withPosition (pstring "struct" <?> "Expecting struct" >>% Struct)
+let openBracesTokenParser : Parser<_> = withPosition (pstring "{" >>% OpenBrace)
+let closedBracesTokenParser : Parser<_> = withPosition (pstring "}" >>% ClosedBrace)
+let gotoSymbolTokenParser : Parser<_>  = withPosition (pstring "->" >>% Goto)
+let assignmentSymbolTokenParser : Parser<_>  = withPosition (pchar '=' >>% Assignment)
+let enclosementOpenOperatorTokenParser : Parser<_>  = withPosition (pstring "(" >>% OpenParen)
+let enclosementClosedOperatorTokenParser : Parser<_> = withPosition (pstring ")" >>% ClosedParen)
+let pipeSymbolTokenParser : Parser<_>  = withPosition (pstring "|" >>% Pipe)
+let additionSymbolTokenParser : Parser<_>  = withPosition (pchar '+' >>% Addition)
+let subtractionSymbolTokenParser : Parser<_>  = withPosition (pchar '-' >>% Subtraction)
+let multiplySymbolTokenParser : Parser<_>  = withPosition (pchar '*' >>% Multiply)
+let semiColonSymbolTokenParser : Parser<_> = withPosition (pstring ";" >>% SemiColonTerminator)
+let greaterThanSymbolTokenParser : Parser<_>  = withPosition (pstring ">" >>% GreaterThan)
+let lessThanSymbolTokenParser : Parser<_> = withPosition (pstring "<" >>% LessThan)
+let matchWordTokenParser : Parser<_> = withPosition (pstring "match" >>% Match)
+let typeWordTokenParser : Parser<_> = withPosition (pstring "type" >>% Type)
+let typeChoicesTokenParser : Parser<_> = withPosition (choice [
     pstring i32Type >>. preturn (I32 |> TypeDefinition)
     pstring i64Type >>. preturn (I64 |> TypeDefinition)
     pstring doubleType >>. preturn (Double |> TypeDefinition)
     pstring floatType >>. preturn (Float |> TypeDefinition)
     pstring stringType >>. preturn (String |> TypeDefinition)
     wordParser |>> (UserDefined >> TypeDefinition)
-]
-let typeIdentifierTokenParser : Parser<_> = pchar ':' >>% TypeIdentifier
+])
+let typeIdentifierTokenParser : Parser<_> = withPosition (pchar ':' >>% TypeIdentifier)
 
-let wordTokenParser : Parser<_> = wordParser |>> Name
-let parameterTokenParser : Parser<_> = wordParser |>> Parameter
+let wordTokenParser : Parser<_> = withPosition (wordParser |>> (Word >> Name))
+let parameterTokenParser : Parser<_> = withPosition (wordParser |>> Parameter)
 let numberLiteralTokenParser : Parser<_> =
     let numberFormat =     NumberLiteralOptions.AllowMinusSign
                        ||| NumberLiteralOptions.AllowFraction
                        ||| NumberLiteralOptions.AllowExponent
-    numberLiteral numberFormat "number"
-    |>> NumberLiteral
+    withPosition (numberLiteral numberFormat "number" |>> NumberLiteral)
 
 
 

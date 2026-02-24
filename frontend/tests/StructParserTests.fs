@@ -3,6 +3,7 @@ module StructParserTests
 open Xunit
 open StructParser
 open BasicTypes
+open ParserHelper
 
 let createUserDefined = UserDefined >> TypeDefinition
 
@@ -31,30 +32,32 @@ let ``Struct with multiple fields should pass`` () =
     ParserHelper.testParser structParser document (fun s ->
         Assert.NotEmpty(s.Fields)
 
-        s.Type
-        |> function
-            | Name t -> Assert.Equal("GodStruct", t)
-            | _ -> invalidArg "Struct Type" "Needs to be TypeDefinition"
+        match s.Type with
+        | AnyToken (Name (Word t)) -> Assert.Equal("GodStruct", t)
+        | _ -> invalidArg "Struct Type" "Needs to be TypeDefinition"
 
         Assert.True(
             s.Fields
-            |> List.contains
-                { FieldName = Name "name"
-                  FieldValue = createUserDefined "somekindofvalue" }
+            |> List.exists (fun f ->
+                match f.FieldName, f.FieldValue with
+                | AnyToken (Name (Word "name")), AnyToken (TypeDefinition (UserDefined "somekindofvalue")) -> true
+                | _ -> false)
         )
 
         Assert.True(
             s.Fields
-            |> List.contains
-                { FieldName = Name "someotherName"
-                  FieldValue = createUserDefined "somestuff" }
+            |> List.exists (fun f ->
+                match f.FieldName, f.FieldValue with
+                | AnyToken (Name (Word "someotherName")), AnyToken (TypeDefinition (UserDefined "somestuff")) -> true
+                | _ -> false)
         )
 
         Assert.True(
             s.Fields
-            |> List.contains
-                { FieldName = Name "further"
-                  FieldValue = createUserDefined "things" }
+            |> List.exists (fun f ->
+                match f.FieldName, f.FieldValue with
+                | AnyToken (Name (Word "further")), AnyToken (TypeDefinition (UserDefined "things")) -> true
+                | _ -> false)
         ))
 
 
@@ -69,10 +72,9 @@ let ``Struct without field should pass`` () =
     ParserHelper.testParser structParser document (fun s ->
         Assert.Empty(s.Fields)
 
-        s.Type
-        |> function
-            | Name t -> Assert.Equal("GodStruct", t)
-            | _ -> invalidArg "Struct Type" "Needs to be TypeDefinition")
+        match s.Type with
+        | AnyToken (Name (Word t)) -> Assert.Equal("GodStruct", t)
+        | _ -> invalidArg "Struct Type" "Needs to be TypeDefinition")
 
 [<Fact>]
 let ``Struct without name should fail`` () =
