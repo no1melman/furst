@@ -9,19 +9,26 @@ type CompileError = {
   Length: TokenLength
 }
 
+type SourceLocation = {
+  StartLine: Line
+  StartCol: Column
+  EndLine: Line
+  EndCol: Column
+}
+
 type ParameterExpression = { Name: WordToken; Type: TypeDefinitions }
 
 type Expressions =
   | ParameterExpression
 
 let (|TypedParameterExpressionMatch|ParameterExpressionMatch|Incorrect|) (tokens: TokenWithMetadata list) =
-  match tokens |> List.map (fun t -> t.Token) with
+  match tokens |> List.map _.Token with
   | [ OpenParen; Name name; TypeIdentifier; TypeDefinition typeDefinition; ClosedParen ] ->
     TypedParameterExpressionMatch { Name = name; Type = typeDefinition }
   | [ Name name ] -> ParameterExpressionMatch { Name = name; Type = Inferred }
   | _ -> Incorrect
 
-type BinaryOperator =
+type Operator =
   | Add
   | Subtract
   | Multiply
@@ -43,10 +50,10 @@ type BodyExpression = BodyExpression of Expression list
       FunctionName: string
       Arguments: Expression list
     }
-  and BinaryOperation =
+  and Operation =
     {
       Left: Expression
-      Operator: BinaryOperator
+      Operator: Operator
       Right: Expression
     }
   and StructDefinition =
@@ -86,7 +93,7 @@ type BodyExpression = BodyExpression of Expression list
     // 4. Return Some FunctionDefinition or None
 
     static member IsFunctionDefinition (row: Row) =
-      match row.Expressions |> List.map (fun t -> t.Token) with
+      match row.Expressions |> List.map _.Token with
       | [ Let; Name _; Assignment ] ->
           // Variable binding with no params - only function if has body
           not row.Body.IsEmpty
@@ -109,7 +116,7 @@ type BodyExpression = BodyExpression of Expression list
         | Incorrect -> None
 
       let rec walkList list =
-        match list |> List.map (fun t -> t.Token) with
+        match list |> List.map _.Token with
         | OpenParen :: _ ->
           let maybeExpr = isParameterExpression list.[0..4]
           maybeExpr |> Option.bind (fun expr ->
@@ -134,14 +141,19 @@ type BodyExpression = BodyExpression of Expression list
     | LetBindingExpression of LetBinding
     | FunctionExpression of FunctionDefinition
     | FunctionCallExpression of FunctionCall
-    | BinaryOpExpression of BinaryOperation
+    | OperatorExpression of Operation
     | IdentifierExpression of string
     | LiteralExpression of LiteralValue
     | StructExpression of StructDefinition
 
+type ExpressionNode = {
+  Expr: Expression
+  Location: SourceLocation
+}
+
 // Helper to extract token list from Row
 let tokensFromRow (row: Row) : Tokens list =
-    row.Expressions |> List.map (fun t -> t.Token)
+    row.Expressions |> List.map _.Token
 
 // Extract identifier name from Name token
 let extractName (tokens: Tokens list) : string option =
@@ -149,13 +161,63 @@ let extractName (tokens: Tokens list) : string option =
     |> List.tryPick (function Name (Word n) -> Some n | _ -> None)
 
 // Helper to get first token position for errors
-let getFirstTokenPos (row: Row) : (Line * Column * TokenLength) =
+let getFirstTokenPos (row: Row) : Line * Column * TokenLength =
     match row.Expressions |> List.tryHead with
     | Some t -> (t.Line, t.Column, t.Length)
     | None -> (Line 0L, Column 0L, TokenLength 0)
 
-// Main expression builder - converts Row to Expression
-let rec rowToExpression (row: Row) : Result<Expression, CompileError> =
+// Calculate SourceLocation from a single token
+let tokenLocation (token: TokenWithMetadata) : SourceLocation =
+    let (Line startLine) = token.Line
+    let (Column startCol) = token.Column
+    let (TokenLength len) = token.Length
+    {
+        StartLine = token.Line
+        StartCol = token.Column
+        EndLine = token.Line  // assume single-line token
+        EndCol = Column (startCol + int64 len)
+    }
+
+// Calculate SourceLocation spanning a list of tokens
+let tokensLocation (tokens: TokenWithMetadata list) : SourceLocation =
+    match tokens with
+    | [] ->
+        { StartLine = Line 0L; StartCol = Column 0L; EndLine = Line 0L; EndCol = Column 0L }
+    | tokens ->
+        let first = tokens.Head
+        let last = tokens |> List.last
+        let (Column lastCol) = last.Column
+        let (TokenLength lastLen) = last.Length
+        {
+            StartLine = first.Line
+            StartCol = first.Column
+            EndLine = last.Line
+            EndCol = Column (lastCol + int64 lastLen)
+        }
+
+// Calculate SourceLocation for an entire row (including body)
+let rec rowLocation (row: Row) : SourceLocation =
+    match row.Body with
+    | [] ->
+        // No body, just use tokens
+        tokensLocation row.Expressions
+    | bodyRows ->
+        // Has body, span from first token to end of last body row
+        let firstToken = row.Expressions |> List.tryHead
+        let lastBodyRow = bodyRows |> List.last
+        let endLoc = rowLocation lastBodyRow
+        match firstToken with
+        | Some first ->
+            {
+                StartLine = first.Line
+                StartCol = first.Column
+                EndLine = endLoc.EndLine
+                EndCol = endLoc.EndCol
+            }
+        | None -> endLoc
+
+// Main expression builder - converts Row to ExpressionNode
+let rec rowToExpression (row: Row) : Result<ExpressionNode, CompileError> =
     match tokensFromRow row with
     // let x = value (no body = variable binding)
     | Let :: Name (Word name) :: Assignment :: valueToks when row.Body.IsEmpty ->
@@ -170,7 +232,7 @@ let rec rowToExpression (row: Row) : Result<Expression, CompileError> =
     | _ ->
         parseExpression row.Expressions
 
-and buildLetBinding (name: string) (valueToks: Tokens list) (row: Row) : Result<Expression, CompileError> =
+and buildLetBinding (name: string) (valueToks: Tokens list) (row: Row) : Result<ExpressionNode, CompileError> =
     if valueToks.IsEmpty then
         // Find Assignment token for position
         let assignTok = row.Expressions |> List.find (fun t -> t.Token = Assignment)
@@ -184,142 +246,124 @@ and buildLetBinding (name: string) (valueToks: Tokens list) (row: Row) : Result<
         // Parse value tokens into expression
         let valueTokensMeta = row.Expressions |> List.skipWhile (fun t -> t.Token <> Assignment) |> List.tail
         match parseExpression valueTokensMeta with
-        | Ok valueExpr ->
-            Ok (LetBindingExpression {
-                Name = name
-                Type = Inferred
-                Value = valueExpr
-            })
+        | Ok valueExprNode ->
+            let loc = rowLocation row
+            Ok {
+                Expr = LetBindingExpression {
+                    Name = name
+                    Type = Inferred
+                    Value = valueExprNode.Expr
+                }
+                Location = loc
+            }
         | Error e -> Error e
 
-and parseExpression (tokens: TokenWithMetadata list) : Result<Expression, CompileError> =
-    // Helper to extract identifier from Name or Parameter token
-    let getIdentifier = function
-        | Name (Word n) -> Some n
-        | Parameter p -> Some p
+and parseExpression (tokens: TokenWithMetadata list) : Result<ExpressionNode, CompileError> =
+    let loc = tokensLocation tokens
+
+    // Convert token to operand Expression
+    let tryParseOperand = function
+        | Name (Word n) -> Some (IdentifierExpression n)
+        | Parameter p -> Some (IdentifierExpression p)
+        | NumberLiteral lit when lit.IsInteger -> Some (LiteralExpression (IntLiteral (int lit.String)))
+        | NumberLiteral lit -> Some (LiteralExpression (FloatLiteral (float lit.String)))
         | _ -> None
 
-    match tokens |> List.map (fun t -> t.Token) with
-    // Single identifier
-    | [ Name (Word n) ] -> Ok (IdentifierExpression n)
-    | [ Parameter p ] -> Ok (IdentifierExpression p)
-    // Single literal
-    | [ NumberLiteral lit ] when lit.IsInteger ->
-        Ok (LiteralExpression (IntLiteral (int lit.String)))
-    | [ NumberLiteral lit ] ->
-        Ok (LiteralExpression (FloatLiteral (float lit.String)))
-    // Binary operation: a + b (handle identifiers and literals)
-    | [ leftToken; Tokens.Addition; rightToken ] ->
-        let parseOperand token =
-            match getIdentifier token with
-            | Some id -> Some (IdentifierExpression id)
-            | None ->
-                match token with
-                | NumberLiteral lit when lit.IsInteger -> Some (LiteralExpression (IntLiteral (int lit.String)))
-                | NumberLiteral lit -> Some (LiteralExpression (FloatLiteral (float lit.String)))
-                | _ -> None
+    // Convert token to operator
+    let tryParseOperator = function
+        | Tokens.Addition -> Some Operator.Add
+        | Tokens.Subtraction -> Some Operator.Subtract
+        | Tokens.Multiply -> Some Operator.Multiply
+        | _ -> None
 
-        match parseOperand leftToken, parseOperand rightToken with
-        | Some left, Some right ->
-            Ok (BinaryOpExpression {
-                Left = left
-                Operator = BinaryOperator.Add
-                Right = right
-            })
-        | _ ->
-            let firstToken = tokens.Head
+    let tokenList = tokens |> List.map _.Token
+
+    match tokenList with
+    // Single operand
+    | [ singleToken ] ->
+        match tryParseOperand singleToken with
+        | Some expr -> Ok { Expr = expr; Location = loc }
+        | None ->
             Error {
-                Message = "Binary operation requires valid operands"
-                Line = firstToken.Line
-                Column = firstToken.Column
-                Length = firstToken.Length
+                Message = $"Invalid expression: {singleToken}"
+                Line = tokens.Head.Line
+                Column = tokens.Head.Column
+                Length = tokens.Head.Length
             }
-    | [ leftToken; Tokens.Subtraction; rightToken ] ->
-        let parseOperand token =
-            match getIdentifier token with
-            | Some id -> Some (IdentifierExpression id)
-            | None ->
-                match token with
-                | NumberLiteral lit when lit.IsInteger -> Some (LiteralExpression (IntLiteral (int lit.String)))
-                | NumberLiteral lit -> Some (LiteralExpression (FloatLiteral (float lit.String)))
-                | _ -> None
 
-        match parseOperand leftToken, parseOperand rightToken with
-        | Some left, Some right ->
-            Ok (BinaryOpExpression {
-                Left = left
-                Operator = BinaryOperator.Subtract
-                Right = right
-            })
-        | _ ->
-            let firstToken = tokens.Head
+    // Binary operations (handles chains: a + b + c)
+    | firstToken :: rest when rest |> List.exists (tryParseOperator >> Option.isSome) ->
+        // Parse first operand
+        match tryParseOperand firstToken with
+        | None ->
             Error {
-                Message = "Binary operation requires valid operands"
-                Line = firstToken.Line
-                Column = firstToken.Column
-                Length = firstToken.Length
+                Message = "Expression must start with valid operand"
+                Line = tokens.Head.Line
+                Column = tokens.Head.Column
+                Length = tokens.Head.Length
             }
-    | [ leftToken; Tokens.Multiply; rightToken ] ->
-        let parseOperand token =
-            match getIdentifier token with
-            | Some id -> Some (IdentifierExpression id)
-            | None ->
-                match token with
-                | NumberLiteral lit when lit.IsInteger -> Some (LiteralExpression (IntLiteral (int lit.String)))
-                | NumberLiteral lit -> Some (LiteralExpression (FloatLiteral (float lit.String)))
-                | _ -> None
+        | Some firstExpr ->
+            // Fold over (operator, operand) pairs
+            // Left-associative: a + b + c = (a + b) + c
+            let rec foldOps acc remaining =
+                match remaining with
+                | opToken :: operandToken :: tail ->
+                    match tryParseOperator opToken, tryParseOperand operandToken with
+                    | Some op, Some operand ->
+                        let newExpr = OperatorExpression {
+                            Left = acc
+                            Operator = op
+                            Right = operand
+                        }
+                        foldOps newExpr tail
+                    | _ ->
+                        Error {
+                            Message = "Invalid operator or operand in expression"
+                            Line = tokens.Head.Line
+                            Column = tokens.Head.Column
+                            Length = tokens.Head.Length
+                        }
+                | [] -> Ok acc
+                | _ ->
+                    Error {
+                        Message = "Incomplete binary operation"
+                        Line = tokens.Head.Line
+                        Column = tokens.Head.Column
+                        Length = tokens.Head.Length
+                    }
 
-        match parseOperand leftToken, parseOperand rightToken with
-        | Some left, Some right ->
-            Ok (BinaryOpExpression {
-                Left = left
-                Operator = BinaryOperator.Multiply
-                Right = right
-            })
-        | _ ->
-            let firstToken = tokens.Head
-            Error {
-                Message = "Binary operation requires valid operands"
-                Line = firstToken.Line
-                Column = firstToken.Column
-                Length = firstToken.Length
-            }
-    // Function call: f a b
-    | funcToken :: argTokens when not argTokens.IsEmpty ->
-        match getIdentifier funcToken with
-        | Some funcName ->
-            // Parse arguments
-            let args =
-                argTokens
-                |> List.choose (fun token ->
-                    match token with
-                    | Name (Word n) -> Some (IdentifierExpression n)
-                    | Parameter p -> Some (IdentifierExpression p)
-                    | NumberLiteral lit when lit.IsInteger -> Some (LiteralExpression (IntLiteral (int lit.String)))
-                    | NumberLiteral lit -> Some (LiteralExpression (FloatLiteral (float lit.String)))
-                    | _ -> None)
+            match foldOps firstExpr rest with
+            | Ok expr -> Ok { Expr = expr; Location = loc }
+            | Error e -> Error e
 
+    // Function call: f a b c
+    | funcToken :: argTokens ->
+        match tryParseOperand funcToken with
+        | Some (IdentifierExpression funcName) ->
+            let args = argTokens |> List.choose tryParseOperand
             if args.Length = argTokens.Length then
-                Ok (FunctionCallExpression {
-                    FunctionName = funcName
-                    Arguments = args
-                })
+                Ok {
+                    Expr = FunctionCallExpression {
+                        FunctionName = funcName
+                        Arguments = args
+                    }
+                    Location = loc
+                }
             else
-                let firstToken = tokens.Head
                 Error {
                     Message = "Invalid arguments in function call"
-                    Line = firstToken.Line
-                    Column = firstToken.Column
-                    Length = firstToken.Length
+                    Line = tokens.Head.Line
+                    Column = tokens.Head.Column
+                    Length = tokens.Head.Length
                 }
-        | None ->
-            let firstToken = tokens.Head
+        | _ ->
             Error {
                 Message = "Function call requires identifier"
-                Line = firstToken.Line
-                Column = firstToken.Column
-                Length = firstToken.Length
+                Line = tokens.Head.Line
+                Column = tokens.Head.Column
+                Length = tokens.Head.Length
             }
+
     | [] ->
         Error {
             Message = "Empty expression"
@@ -327,17 +371,8 @@ and parseExpression (tokens: TokenWithMetadata list) : Result<Expression, Compil
             Column = Column 0L
             Length = TokenLength 0
         }
-    | tokenList ->
-        let firstToken = tokens |> List.head
-        let tokenString = tokenList |> List.map (fun t -> t.ToString()) |> String.concat ", "
-        Error {
-            Message = $"Unsupported expression type: [{tokenString}]"
-            Line = firstToken.Line
-            Column = firstToken.Column
-            Length = firstToken.Length
-        }
 
-and buildFunctionDefinition (row: Row) : Result<Expression, CompileError> =
+and buildFunctionDefinition (row: Row) : Result<ExpressionNode, CompileError> =
     let tokens = tokensFromRow row
     match tokens with
     | Let :: Name (Word funcName) :: rest ->
@@ -353,15 +388,20 @@ and buildFunctionDefinition (row: Row) : Result<Expression, CompileError> =
         if not errors.IsEmpty then
             Error errors.Head  // Return first error
         else
-            let bodyExprs = bodyResults |> List.choose (function Ok e -> Some e | _ -> None)
-            Ok (FunctionExpression {
-                Identifier = funcName
-                Type = Inferred
-                Parameters = parameters
-                Body = BodyExpression bodyExprs
-            })
+            let bodyExprNodes = bodyResults |> List.choose (function Ok e -> Some e | _ -> None)
+            let bodyExprs = bodyExprNodes |> List.map _.Expr
+            let loc = rowLocation row
+            Ok {
+                Expr = FunctionExpression {
+                    Identifier = funcName
+                    Type = Inferred
+                    Parameters = parameters
+                    Body = BodyExpression bodyExprs
+                }
+                Location = loc
+            }
     | _ ->
-        let (line, col, len) = getFirstTokenPos row
+        let line, col, len = getFirstTokenPos row
         Error {
             Message = "Invalid function definition"
             Line = line
@@ -377,9 +417,9 @@ and extractParameters (tokens: Tokens list) : ParameterExpression list =
         | Parameter p -> Some { Name = Word p; Type = Inferred }
         | _ -> None)
 
-and buildStructDefinition (name: string) (row: Row) : Result<Expression, CompileError> =
+and buildStructDefinition (name: string) (row: Row) : Result<ExpressionNode, CompileError> =
     // TODO: parse fields from row.Body
-    let (line, col, len) = getFirstTokenPos row
+    let line, col, len = getFirstTokenPos row
     Error {
         Message = "Struct definitions not yet implemented"
         Line = line
