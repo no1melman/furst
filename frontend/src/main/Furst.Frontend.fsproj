@@ -11,6 +11,7 @@
     <Compile Include="CommonParsers.fs" />
     <Compile Include="StructParser.fs" />
     <Compile Include="TestTwoPhase.fs" />
+    <Compile Include="Cli.fs" />
     <Compile Include="Program.fs" />
   </ItemGroup>
 

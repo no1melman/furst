@@ -1,7 +1,5 @@
 module BasicTypes
 
-open FParsec.CharParsers
-
 type TypeDefinitions =
   | I32
   | I64
@@ -12,6 +10,10 @@ type TypeDefinitions =
   | UserDefined of string
 
 type WordToken = Word of string
+
+type NumberValue =
+  | IntValue of int
+  | FloatValue of float
 
 type Tokens =
   | Let
@@ -35,7 +37,7 @@ type Tokens =
   | TypeIdentifier
   | Name of WordToken
   | Parameter of string
-  | NumberLiteral of NumberLiteral
+  | NumberLiteral of NumberValue
   | NoToken
 
 type Line = Line of int64

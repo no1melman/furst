@@ -1,16 +1,16 @@
 # Session Handoff
 
 ## What was worked on
-Built complete AST layer for F# frontend: added position tracking to all tokens (Line, Column, Length as int64), implemented Result-based error handling with precise error locations, and created Row → Expression AST builders. All 6 AST tests passing including nested functions with calls.
+Added CLI (`Cli.fs`) with `help`, `lex`, `ast`, `check`, `build` (stub) commands. Rewrote `Program.fs` as entrypoint. Added proper indented tree printer for `ast` command. Removed `<!>` debug operator noise from parser output.
 
 ## Current state
-AST building fully functional for: variable bindings, function definitions (with params and nested bodies), binary operations (with identifiers and literals), and function calls. Error messages include exact source positions. Ready to move forward with serialization.
+CLI fully working via `dotnet exec` (NixOS dynamic linking prevents `dotnet run` directly). 31/33 tests pass, 2 pre-existing failures unrelated to CLI work.
 
 ## Next step
-Implement protobuf schema for AST serialization - define .proto file matching the Expression types, then serialize F# AST to protobuf for C++ backend consumption.
+Design the frontend→backend interchange format. CLI should handle the full pipeline (`build` calls frontend then invokes backend). Need a binary serialization format (protobuf was discussed previously) to pass AST from F# frontend to C++ LLVM backend. Also need to generate test fixture files so the backend can be developed/tested independently.
 
 ## Key decisions
-- Using int64 for Line/Column (from FParsec Position) - won't overflow
-- Expression-based language following F# style (everything returns value)
-- Result<Expression, CompileError> for all builders - no Option types for errors
-- Active patterns (AnyToken, TokenAt, WithMeta) for test assertions
+- No project flake.nix — home-manager already provides dotnet + rider + neovim
+- `<!>` debug operator neutered to identity function (kept operator so call sites don't break)
+- CLI owns the full compile pipeline — not just outputting AST for external consumption
+- Interchange format TBD: protobuf likely, binary preferred over JSON for size

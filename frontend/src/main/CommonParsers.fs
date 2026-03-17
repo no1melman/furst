@@ -67,7 +67,11 @@ let numberLiteralTokenParser : Parser<_> =
     let numberFormat =     NumberLiteralOptions.AllowMinusSign
                        ||| NumberLiteralOptions.AllowFraction
                        ||| NumberLiteralOptions.AllowExponent
-    withPosition (numberLiteral numberFormat "number" |>> NumberLiteral)
+    withPosition (numberLiteral numberFormat "number" |>> fun nl ->
+        (match nl.IsInteger with
+        | true  -> nl.String |> int   |> IntValue
+        | false -> nl.String |> float |> FloatValue)
+        |> NumberLiteral)
 
 
 

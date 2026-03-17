@@ -8,6 +8,13 @@ type CompileError = {
   Column: Column
   Length: TokenLength
 }
+with
+  static member Empty(message: string) = {
+    Message = message
+    Line = Line 0L
+    Column = Column 0L
+    Length = TokenLength 0
+  }
 
 type SourceLocation = {
   StartLine: Line
@@ -25,6 +32,8 @@ let (|TypedParameterExpressionMatch|ParameterExpressionMatch|Incorrect|) (tokens
   match tokens |> List.map _.Token with
   | [ OpenParen; Name name; TypeIdentifier; TypeDefinition typeDefinition; ClosedParen ] ->
     TypedParameterExpressionMatch { Name = name; Type = typeDefinition }
+  | [ OpenParen; Parameter p; TypeIdentifier; TypeDefinition typeDefinition; ClosedParen ] ->
+    TypedParameterExpressionMatch { Name = Word p; Type = typeDefinition }
   | [ Name name ] -> ParameterExpressionMatch { Name = name; Type = Inferred }
   | _ -> Incorrect
 
@@ -166,6 +175,15 @@ let getFirstTokenPos (row: Row) : Line * Column * TokenLength =
     | Some t -> (t.Line, t.Column, t.Length)
     | None -> (Line 0L, Column 0L, TokenLength 0)
 
+// Create error from token
+let tokenError (message: string) (token: TokenWithMetadata) : CompileError =
+    {
+        Message = message
+        Line = token.Line
+        Column = token.Column
+        Length = token.Length
+    }
+
 // Calculate SourceLocation from a single token
 let tokenLocation (token: TokenWithMetadata) : SourceLocation =
     let (Line startLine) = token.Line
@@ -216,6 +234,39 @@ let rec rowLocation (row: Row) : SourceLocation =
             }
         | None -> endLoc
 
+// Split a flat token list into argument groups:
+// single tokens become one group, (x + y) becomes one group (without parens)
+let splitArgumentGroups (tokens: TokenWithMetadata list) : TokenWithMetadata list list =
+    let rec loop acc currentGroup depth remaining =
+        match remaining with
+        | [] ->
+            match currentGroup with
+            | [] -> acc |> List.rev
+            | g -> (g |> List.rev) :: acc |> List.rev
+        | t :: rest ->
+            match t.Token, depth with
+            | OpenParen, 0 ->
+                // start a paren group; flush any pending single token
+                let acc' =
+                    match currentGroup with
+                    | [] -> acc
+                    | g -> (g |> List.rev) :: acc
+                loop acc' [] 1 rest
+            | ClosedParen, 1 ->
+                // close paren group — the inner tokens are one argument group
+                loop ((currentGroup |> List.rev) :: acc) [] 0 rest
+            | OpenParen, d ->
+                loop acc (t :: currentGroup) (d + 1) rest
+            | ClosedParen, d ->
+                loop acc (t :: currentGroup) (d - 1) rest
+            | _, 0 ->
+                // top-level token — each is its own group
+                loop ([ t ] :: acc) [] 0 rest
+            | _ ->
+                // inside parens — accumulate
+                loop acc (t :: currentGroup) depth rest
+    loop [] [] 0 tokens
+
 // Main expression builder - converts Row to ExpressionNode
 let rec rowToExpression (row: Row) : Result<ExpressionNode, CompileError> =
     match tokensFromRow row with
@@ -236,19 +287,14 @@ and buildLetBinding (name: string) (valueToks: Tokens list) (row: Row) : Result<
     if valueToks.IsEmpty then
         // Find Assignment token for position
         let assignTok = row.Expressions |> List.find (fun t -> t.Token = Assignment)
-        Error {
-            Message = $"Expected value after '=' in let binding for '{name}'"
-            Line = assignTok.Line
-            Column = assignTok.Column
-            Length = assignTok.Length
-        }
+        Result.Error (tokenError $"Expected value after '=' in let binding for '{name}'" assignTok)
     else
         // Parse value tokens into expression
         let valueTokensMeta = row.Expressions |> List.skipWhile (fun t -> t.Token <> Assignment) |> List.tail
         match parseExpression valueTokensMeta with
         | Ok valueExprNode ->
             let loc = rowLocation row
-            Ok {
+            Result.Ok {
                 Expr = LetBindingExpression {
                     Name = name
                     Type = Inferred
@@ -256,7 +302,7 @@ and buildLetBinding (name: string) (valueToks: Tokens list) (row: Row) : Result<
                 }
                 Location = loc
             }
-        | Error e -> Error e
+        | Error e -> Result.Error e
 
 and parseExpression (tokens: TokenWithMetadata list) : Result<ExpressionNode, CompileError> =
     let loc = tokensLocation tokens
@@ -265,8 +311,8 @@ and parseExpression (tokens: TokenWithMetadata list) : Result<ExpressionNode, Co
     let tryParseOperand = function
         | Name (Word n) -> Some (IdentifierExpression n)
         | Parameter p -> Some (IdentifierExpression p)
-        | NumberLiteral lit when lit.IsInteger -> Some (LiteralExpression (IntLiteral (int lit.String)))
-        | NumberLiteral lit -> Some (LiteralExpression (FloatLiteral (float lit.String)))
+        | NumberLiteral (IntValue i)   -> Some (LiteralExpression (IntLiteral i))
+        | NumberLiteral (FloatValue f) -> Some (LiteralExpression (FloatLiteral f))
         | _ -> None
 
     // Convert token to operator
@@ -282,26 +328,23 @@ and parseExpression (tokens: TokenWithMetadata list) : Result<ExpressionNode, Co
     // Single operand
     | [ singleToken ] ->
         match tryParseOperand singleToken with
-        | Some expr -> Ok { Expr = expr; Location = loc }
+        | Some expr -> Result.Ok { Expr = expr; Location = loc }
         | None ->
-            Error {
-                Message = $"Invalid expression: {singleToken}"
-                Line = tokens.Head.Line
-                Column = tokens.Head.Column
-                Length = tokens.Head.Length
-            }
+            Result.Error (tokenError $"Invalid expression: {singleToken}" tokens.Head)
 
     // Binary operations (handles chains: a + b + c)
-    | firstToken :: rest when rest |> List.exists (tryParseOperator >> Option.isSome) ->
+    // Only match top-level operators (not inside parens)
+    | firstToken :: rest when
+        rest |> List.fold (fun (depth, found) t ->
+            match t, depth with
+            | OpenParen, _ -> (depth + 1, found)
+            | ClosedParen, _ -> (depth - 1, found)
+            | op, 0 when tryParseOperator op |> Option.isSome -> (depth, true)
+            | _ -> (depth, found)) (0, false) |> snd ->
         // Parse first operand
         match tryParseOperand firstToken with
         | None ->
-            Error {
-                Message = "Expression must start with valid operand"
-                Line = tokens.Head.Line
-                Column = tokens.Head.Column
-                Length = tokens.Head.Length
-            }
+            Result.Error (tokenError "Expression must start with valid operand" tokens.Head)
         | Some firstExpr ->
             // Fold over (operator, operand) pairs
             // Left-associative: a + b + c = (a + b) + c
@@ -317,60 +360,42 @@ and parseExpression (tokens: TokenWithMetadata list) : Result<ExpressionNode, Co
                         }
                         foldOps newExpr tail
                     | _ ->
-                        Error {
-                            Message = "Invalid operator or operand in expression"
-                            Line = tokens.Head.Line
-                            Column = tokens.Head.Column
-                            Length = tokens.Head.Length
-                        }
-                | [] -> Ok acc
+                        Result.Error (tokenError "Invalid operator or operand in expression" tokens.Head)
+                | [] -> Result.Ok acc
                 | _ ->
-                    Error {
-                        Message = "Incomplete binary operation"
-                        Line = tokens.Head.Line
-                        Column = tokens.Head.Column
-                        Length = tokens.Head.Length
-                    }
+                    Result.Error (tokenError "Incomplete binary operation" tokens.Head)
 
             match foldOps firstExpr rest with
-            | Ok expr -> Ok { Expr = expr; Location = loc }
-            | Error e -> Error e
+            | Ok expr -> Result.Ok { Expr = expr; Location = loc }
+            | Error e -> Result.Error e
 
-    // Function call: f a b c
-    | funcToken :: argTokens ->
+    // Function call: f a b, f a (2 + 3), etc.
+    | funcToken :: _ when tryParseOperand funcToken |> Option.isSome ->
         match tryParseOperand funcToken with
         | Some (IdentifierExpression funcName) ->
-            let args = argTokens |> List.choose tryParseOperand
-            if args.Length = argTokens.Length then
-                Ok {
+            let argTokens = tokens |> List.tail
+            let argGroups = splitArgumentGroups argTokens
+            let argResults = argGroups |> List.map parseExpression
+            let errors = argResults |> List.choose (function Result.Error e -> Some e | _ -> None)
+            match errors with
+            | e :: _ -> Result.Error e
+            | [] ->
+                let args = argResults |> List.choose (function Result.Ok n -> Some n.Expr | _ -> None)
+                Result.Ok {
                     Expr = FunctionCallExpression {
                         FunctionName = funcName
                         Arguments = args
                     }
                     Location = loc
                 }
-            else
-                Error {
-                    Message = "Invalid arguments in function call"
-                    Line = tokens.Head.Line
-                    Column = tokens.Head.Column
-                    Length = tokens.Head.Length
-                }
         | _ ->
-            Error {
-                Message = "Function call requires identifier"
-                Line = tokens.Head.Line
-                Column = tokens.Head.Column
-                Length = tokens.Head.Length
-            }
+            Result.Error (tokenError "Function call requires identifier" tokens.Head)
 
     | [] ->
-        Error {
-            Message = "Empty expression"
-            Line = Line 0L
-            Column = Column 0L
-            Length = TokenLength 0
-        }
+        Result.Error (CompileError.Empty "Empty expression")
+
+    | _ ->
+        Result.Error (tokenError "Unrecognized expression" tokens.Head)
 
 and buildFunctionDefinition (row: Row) : Result<ExpressionNode, CompileError> =
     let tokens = tokensFromRow row
@@ -386,12 +411,12 @@ and buildFunctionDefinition (row: Row) : Result<ExpressionNode, CompileError> =
         // Collect errors or successes
         let errors = bodyResults |> List.choose (function Error e -> Some e | _ -> None)
         if not errors.IsEmpty then
-            Error errors.Head  // Return first error
+            Result.Error errors.Head  // Return first error
         else
             let bodyExprNodes = bodyResults |> List.choose (function Ok e -> Some e | _ -> None)
             let bodyExprs = bodyExprNodes |> List.map _.Expr
             let loc = rowLocation row
-            Ok {
+            Result.Ok {
                 Expr = FunctionExpression {
                     Identifier = funcName
                     Type = Inferred
@@ -402,7 +427,7 @@ and buildFunctionDefinition (row: Row) : Result<ExpressionNode, CompileError> =
             }
     | _ ->
         let line, col, len = getFirstTokenPos row
-        Error {
+        Result.Error {
             Message = "Invalid function definition"
             Line = line
             Column = col
@@ -410,17 +435,24 @@ and buildFunctionDefinition (row: Row) : Result<ExpressionNode, CompileError> =
         }
 
 and extractParameters (tokens: Tokens list) : ParameterExpression list =
-    // Simple parameter extraction - just names for now
-    tokens
-    |> List.choose (function
-        | Name (Word n) -> Some { Name = Word n; Type = Inferred }
-        | Parameter p -> Some { Name = Word p; Type = Inferred }
-        | _ -> None)
+    let rec loop acc remaining =
+        match remaining with
+        | [] -> acc |> List.rev
+        | OpenParen :: Parameter p :: TypeIdentifier :: TypeDefinition td :: ClosedParen :: rest ->
+            loop ({ Name = Word p; Type = td } :: acc) rest
+        | OpenParen :: Name (Word n) :: TypeIdentifier :: TypeDefinition td :: ClosedParen :: rest ->
+            loop ({ Name = Word n; Type = td } :: acc) rest
+        | Name (Word n) :: rest ->
+            loop ({ Name = Word n; Type = Inferred } :: acc) rest
+        | Parameter p :: rest ->
+            loop ({ Name = Word p; Type = Inferred } :: acc) rest
+        | _ :: rest -> loop acc rest
+    loop [] tokens
 
 and buildStructDefinition (name: string) (row: Row) : Result<ExpressionNode, CompileError> =
     // TODO: parse fields from row.Body
     let line, col, len = getFirstTokenPos row
-    Error {
+    Result.Error {
         Message = "Struct definitions not yet implemented"
         Line = line
         Column = col

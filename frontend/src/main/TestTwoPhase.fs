@@ -101,23 +101,7 @@ let tokenParser =
     wordTokenParser
   ]
   
-let (<!>) (p: Parser<_,_>) label : Parser<_,_> =
-    fun stream ->
-        // printfn "%A: Entering %s" stream.Position label
-        let reply = p stream
-        // printfn "%A: Leaving %s (%A)" stream.Position label reply.Status
-        if isNull reply.Error |> not then 
-          reply.Error.Head
-          |> function
-              | ExpectedString s
-              | ExpectedStringCI s
-              | Unexpected s
-              | UnexpectedString s
-              | UnexpectedStringCI s
-              | Message s
-              | Expected s -> printfn "%s" s
-              | l -> printfn "Was unknown error"
-        reply
+let (<!>) (p: Parser<_,_>) _label : Parser<_,_> = p
 
 let pPotentialExpr =
   (attempt letBlockParser <!> "let block") <|> (tokenParser |>> List.singleton <!> "Token parser")
@@ -128,7 +112,7 @@ let fakeTokenListOption _ : TokenWithMetadata list option =
 let pOptionExpr : Parser<TokenWithMetadata list option> =
   pMatch [
     (structWordTokenParser |>> fakeTokenListOption, (attempt structParser |>> Some)) 
-    (noneOf (seq { '\n' }) |>> fakeTokenListOption, (sepEndBy1 pPotentialExpr pManyWhitespace1 |>> List.collect id) |>> Some)
+    (noneOf (seq { '\n' }) |>> fakeTokenListOption, (many1 (pPotentialExpr .>> pManyWhitespace) |>> List.collect id) |>> Some)
     (anyOf (seq { '\n' }) |>> fakeTokenListOption, preturn None)
     (eof |>> fakeTokenListOption, preturn None)
   ] <!> "Match Block"
@@ -141,42 +125,6 @@ let pLineExpr =
                     |> Option.map (fun e -> { Indent = indent; Expressions = e; Body = [] })
   ) newline
 
-let document = """let a =
-  b
-  let c =
-    d
-  e
-
-struct o {
-  callum: string
-}
-
-let f = 
-let h =
-  i * j
-  
-let k l =
-  l * m
-  
-let n (o: i32) =
-  o + 2
-"""
-
-let maybeTokenisedLines =
-  runParserOnString pLineExpr BlockScopeParserState.Default "code" document
-  |> function
-     | Success (lines, _, _) ->
-         let parsedLines = 
-           lines
-           |> List.choose id
-         parsedLines
-         |> List.iter (fun line -> printfn "%A" line)
-         Some parsedLines
-     | Failure (e,_,_) ->
-         printfn "%s" e
-         None
-
-let tokenisedLines = maybeTokenisedLines.Value
 
 let nestRows (items: Row list) =
     let rec sortViaIndent indent items =
@@ -212,10 +160,6 @@ let createAST docName code =
      | Failure (e,_,_) ->
          Result.Error e
     
-let result =
-  let a = nestRows maybeTokenisedLines.Value
-  printfn "Done"
-  a
 
 let rec rowReader (row: Row) : unit =
   let sb = StringBuilder()
@@ -241,7 +185,8 @@ let rec rowReader (row: Row) : unit =
        | TypeDefinition t -> sprintf "%s " (t.ToString().ToLowerInvariant()) |> append
        | Parameter p -> sprintf "(Parameter %s) " p |> append
        | Name (Word w) -> sprintf "%s " w |> append
-       | NumberLiteral numberLiteral -> sprintf "%s " (numberLiteral.String) |> append
+       | NumberLiteral (IntValue i)   -> sprintf "%d " i |> append
+       | NumberLiteral (FloatValue f) -> sprintf "%g " f |> append
        | NoToken -> ()
        | OpenBrace -> "{ " |> append
        | ClosedBrace -> "} " |> append
