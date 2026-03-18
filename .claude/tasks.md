@@ -29,11 +29,28 @@
 - [x] Create ADR-0001: Symbol tracking and function call validation
 - [x] Create ADR-0002: Algebraic type system and type inference
 
+### Phase 4: Lowered AST & .fso Interchange
+- [x] Create proto/furst_ast.proto (protobuf schema for lowered AST)
+- [x] Create Furst.Proto C# class library (pre-generated protobuf code, NixOS workaround)
+- [x] Implement Lowering.fs (lambda lifting, type resolution stub, flatten to top-level defs)
+- [x] Implement FsoWriter.fs (map lowered IR → protobuf, write .fso with 8-byte header)
+- [x] Wire `build` command: parse → lower → writeFso → .fso output
+- [x] Upgrade all projects from net8.0 → net9.0
+- [x] Add 16 integration tests (lowering + roundtrip .fso serialization)
+
 ## In Progress
 
 ## Todo
 
-### Phase 4: Symbol Tracking (ADR-0001)
+### Phase 5: C++ Backend (.fso Consumer)
+- [ ] Add `find_package(Protobuf)` to CMakeLists.txt
+- [ ] Create fso_reader.h/cpp (read .fso header + parse FurstModule)
+- [ ] Implement LLVM IR emitter for top-level FunctionDef
+- [ ] Implement expression emitter (let binding, function call, operation, identifier, literal)
+- [ ] Implement StructDef → llvm::StructType
+- [ ] End-to-end test: .fu → .fso → LLVM IR → executable
+
+### Phase 6: Symbol Tracking (ADR-0001)
 - [ ] Define SymbolTable type (Functions, Variables maps)
 - [ ] Implement collectSymbols (walk AST, build symbol table)
 - [ ] Implement validateExpression (check function calls exist)
@@ -41,7 +58,7 @@
 - [ ] Add symbol validation tests
 - [ ] Integrate validation into compilation pipeline
 
-### Phase 5: Type System Foundation (ADR-0002)
+### Phase 7: Type System Foundation (ADR-0002)
 - [ ] Expand Type ADT (TPrim, TFunc, TTuple, TRecord, TVar, TSum)
 - [ ] Define TypeEnv and TypeScheme
 - [ ] Implement fresh type variable generation
@@ -49,7 +66,7 @@
 - [ ] Add occurs check (prevent infinite types)
 - [ ] Write unification tests
 
-### Phase 6: Type Inference (ADR-0002)
+### Phase 8: Type Inference (ADR-0002)
 - [ ] Implement Algorithm W (type inference)
 - [ ] Add constraint generation
 - [ ] Implement constraint solving
@@ -58,7 +75,7 @@
 - [ ] Write type inference tests
 - [ ] Integrate with AST building
 
-### Phase 7: Algebraic Data Types
+### Phase 9: Algebraic Data Types
 - [ ] Implement sum type definitions (type Option<T> = Some T | None)
 - [ ] Implement record type definitions (type Point = { x: Float, y: Float })
 - [ ] Add type alias support
@@ -66,7 +83,7 @@
 - [ ] Add exhaustiveness checking for patterns
 - [ ] Write ADT tests
 
-### Phase 8: Expression Types
+### Phase 10: Expression Types
 - [ ] Add if/then/else expressions
 - [ ] Add let bindings in expression position
 - [ ] Add tuple expressions
@@ -74,16 +91,8 @@
 - [ ] Add list literals and operations
 - [ ] Implement struct definition AST building
 
-### Phase 9: Backend Integration
-- [ ] Implement protobuf schema for typed AST serialization
-- [ ] F# AST → protobuf serialization (with type info)
-- [ ] C++ protobuf → MLIR IR generation
-- [ ] Build out FurstDialect in MLIR
-- [ ] Add LLVM codegen for algebraic types
-
-### Phase 10: Integration & Testing
-- [ ] Add end-to-end compilation tests
-- [ ] Add integration tests for full pipeline
-- [ ] Add error message quality tests
-- [ ] Performance benchmarks (type inference)
-- [ ] LSP integration for IDE support
+### Known Issues
+- [ ] Single-line function bodies after `=` produce empty body (parser limitation)
+- [ ] Function calls inside binary ops not supported by parser
+- [ ] Typed parameter parsing — `(a: i32)` style needs fix
+- [ ] 2 pre-existing test failures (AstWalkerTests throws "fucked", GeneratorTests stale assertion)

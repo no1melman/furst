@@ -132,9 +132,26 @@ let runCheck (file: string) =
                     formatError source err
                 1
 
-let runBuild (_file: string) =
-    eprintfn "codegen not yet wired up"
-    2
+let runBuild (file: string) =
+    match readFile file with
+    | Result.Error e -> eprintfn "%s" e; 2
+    | Ok source ->
+        match TestTwoPhase.createAST file source with
+        | Result.Error e -> eprintfn "Parse error: %s" e; 1
+        | Ok rows ->
+            let results = rows |> List.map rowToExpression
+            let errors = results |> List.choose (function Result.Error e -> Some e | _ -> None)
+            match errors with
+            | e :: _ ->
+                formatError source e
+                1
+            | [] ->
+                let nodes = results |> List.choose (function Ok n -> Some n | _ -> None)
+                let lowered = Lowering.lower nodes
+                let outPath = System.IO.Path.ChangeExtension(file, ".fso")
+                FsoWriter.writeFso outPath file lowered
+                printfn "wrote %s" outPath
+                0
 
 let run (argv: string array) =
     match parseArgs argv with

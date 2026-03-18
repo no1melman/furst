@@ -2,7 +2,7 @@
 
   <PropertyGroup>
     <OutputType>Exe</OutputType>
-    <TargetFramework>net8.0</TargetFramework>
+    <TargetFramework>net9.0</TargetFramework>
   </PropertyGroup>
 
   <ItemGroup>
@@ -11,12 +11,19 @@
     <Compile Include="CommonParsers.fs" />
     <Compile Include="StructParser.fs" />
     <Compile Include="TestTwoPhase.fs" />
+    <Compile Include="Lowering.fs" />
+    <Compile Include="FsoWriter.fs" />
     <Compile Include="Cli.fs" />
     <Compile Include="Program.fs" />
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="../proto/Furst.Proto.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
     <PackageReference Include="FParsec" Version="1.1.1" />
+    <PackageReference Include="Google.Protobuf" Version="3.29.3" />
   </ItemGroup>
 
 </Project>

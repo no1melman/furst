@@ -1,0 +1,116 @@
+syntax = "proto3";
+package furst;
+
+option cc_enable_arenas = true;
+
+// -- Types (always resolved, no Inferred) --
+
+message BuiltinType {
+  enum Kind {
+    I32 = 0;
+    I64 = 1;
+    FLOAT = 2;
+    DOUBLE = 3;
+    STRING = 4;
+    VOID = 5;
+  }
+  Kind kind = 1;
+}
+
+message TypeRef {
+  oneof kind {
+    BuiltinType builtin = 1;
+    string user_defined = 2;
+  }
+}
+
+// -- Operators --
+
+enum Operator {
+  OP_ADD = 0;
+  OP_SUBTRACT = 1;
+  OP_MULTIPLY = 2;
+}
+
+// -- Source locations (for error reporting in backend) --
+
+message SourceLocation {
+  int64 start_line = 1;
+  int64 start_col = 2;
+  int64 end_line = 3;
+  int64 end_col = 4;
+}
+
+// -- Literals --
+
+message LiteralValue {
+  oneof kind {
+    int32 int_literal = 1;
+    double float_literal = 2;
+    string string_literal = 3;
+  }
+}
+
+// -- Expressions (still tree-shaped, but no nesting of function defs) --
+
+message Expression {
+  oneof kind {
+    LetBinding let_binding = 1;
+    FunctionCall function_call = 2;
+    Operation operation = 3;
+    string identifier = 4;
+    LiteralValue literal = 5;
+  }
+  TypeRef resolved_type = 10;
+  SourceLocation location = 11;
+}
+
+message LetBinding {
+  string name = 1;
+  TypeRef type = 2;
+  Expression value = 3;
+}
+
+message FunctionCall {
+  string name = 1;
+  repeated Expression arguments = 2;
+}
+
+message Operation {
+  Expression left = 1;
+  Operator op = 2;
+  Expression right = 3;
+}
+
+// -- Top-level definitions (flat, no nesting) --
+
+message Parameter {
+  string name = 1;
+  TypeRef type = 2;
+}
+
+message FunctionDef {
+  string name = 1;
+  TypeRef return_type = 2;
+  repeated Parameter parameters = 3;
+  repeated Expression body = 4;
+  SourceLocation location = 5;
+}
+
+message StructDef {
+  string name = 1;
+  repeated Parameter fields = 2;
+  SourceLocation location = 3;
+}
+
+message TopLevel {
+  oneof kind {
+    FunctionDef function = 1;
+    StructDef struct_def = 2;
+  }
+}
+
+message FurstModule {
+  string source_file = 1;
+  repeated TopLevel definitions = 2;
+}
