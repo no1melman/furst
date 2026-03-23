@@ -34,6 +34,7 @@ let doubleType = "double"
 let floatType = "float"
 let stringType = "string"
 
+let exportWordTokenParser : Parser<_> = withPosition (pstring "export" >>% Export)
 let letWordTokenParser : Parser<_> = withPosition (pstring "let" >>% Let)
 let structWordTokenParser : Parser<_> = withPosition (pstring "struct" <?> "Expecting struct" >>% Struct)
 let openBracesTokenParser : Parser<_> = withPosition (pstring "{" >>% OpenBrace)

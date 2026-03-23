@@ -20,6 +20,7 @@
     <Compile Include="AstBuilderTests.fs" />
     <Compile Include="DebugAstTest.fs" />
     <Compile Include="LoweringIntegrationTests.fs" />
+    <Compile Include="GenerateFixtures.fs" />
     <Compile Include="Program.fs" />
   </ItemGroup>
 

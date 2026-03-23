@@ -1,0 +1,13 @@
+Checks: >
+  -*,
+  bugprone-*,
+  cert-*,
+  cppcoreguidelines-*,
+  misc-*,
+  modernize-*,
+  performance-*,
+  readability-*,
+  -modernize-use-trailing-return-type,
+  -readability-identifier-length
+WarningsAsErrors: '*'
+HeaderFilterRegex: 'src/.*\.h$'

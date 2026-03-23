@@ -90,7 +90,7 @@ let rec private mapExpr (expr: Expression) : Furst.Expression =
             e.ResolvedType <- mapType String
         e.Literal <- plv
 
-    | FunctionExpression _ ->
+    | FunctionDefinitionExpression _ ->
         e.Identifier <- "<error:unlowered-function>"
         e.ResolvedType <- mapType Inferred
 
@@ -139,7 +139,7 @@ let writeFso (outputPath: string) (sourceFile: string) (defs: TopLevelDef list) 
     for d in defs do
         let tl = Furst.TopLevel()
         match d with
-        | TopFunction fd -> tl.Function <- mapFunctionDef fd
+        | TopFunction fd | TopExportedFunction fd -> tl.Function <- mapFunctionDef fd
         | TopStruct sd -> tl.StructDef <- mapStructDef sd
         m.Definitions.Add(tl)
 

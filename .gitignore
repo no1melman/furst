@@ -9,3 +9,7 @@ deps_build/
 out/
 CMakeFiles/
 .cache/
+*.fso
+examples/hello
+examples/add
+examples/nested

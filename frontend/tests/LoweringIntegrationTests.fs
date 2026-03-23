@@ -49,7 +49,7 @@ let ``Simple function with multiline body lowers to single top-level def`` () =
     let defs = lower source
     Assert.Equal(1, defs.Length)
     match defs.[0] with
-    | TopFunction fd ->
+    | TopFunction fd | TopExportedFunction fd ->
         Assert.Equal("add", fd.Name)
         Assert.Equal(2, fd.Parameters.Length)
         Assert.Equal("x", fd.Parameters.[0].Name)
@@ -61,7 +61,7 @@ let ``Simple function with multiline body lowers to single top-level def`` () =
 let ``Nested function gets lambda-lifted with mangled name`` () =
     let source = "let outer x =\n  let inner y =\n    y\n  inner 5"
     let defs = lower source
-    let names = defs |> List.map (function TopFunction fd -> fd.Name | TopStruct sd -> sd.Name)
+    let names = defs |> List.map (function TopFunction fd | TopExportedFunction fd -> fd.Name | TopStruct sd -> sd.Name)
     Assert.Contains("outer$inner", names)
     Assert.Contains("outer", names)
 
@@ -69,7 +69,7 @@ let ``Nested function gets lambda-lifted with mangled name`` () =
 let ``Lambda-lifted function gets own params`` () =
     let source = "let outer x =\n  let inner y =\n    y\n  inner 5"
     let defs = lower source
-    let inner = defs |> List.pick (function TopFunction fd when fd.Name = "outer$inner" -> Some fd | _ -> None)
+    let inner = defs |> List.pick (function TopFunction fd | TopExportedFunction fd when fd.Name = "outer$inner" -> Some fd | _ -> None)
     let paramNames = inner.Parameters |> List.map (fun p -> p.Name)
     Assert.Contains("y", paramNames)
 
@@ -77,7 +77,7 @@ let ``Lambda-lifted function gets own params`` () =
 let ``Lambda-lifted function captures outer params when used in body`` () =
     let source = "let outer x =\n  let inner y =\n    x + y\n  inner 5"
     let defs = lower source
-    let inner = defs |> List.pick (function TopFunction fd when fd.Name = "outer$inner" -> Some fd | _ -> None)
+    let inner = defs |> List.pick (function TopFunction fd | TopExportedFunction fd when fd.Name = "outer$inner" -> Some fd | _ -> None)
     let paramNames = inner.Parameters |> List.map (fun p -> p.Name)
     // inner should have captured 'x' + own param 'y'
     Assert.Contains("x", paramNames)
@@ -88,7 +88,7 @@ let ``Lambda-lifted function captures outer params when used in body`` () =
 let ``Multiple top-level functions stay flat`` () =
     let source = "let foo a =\n  a\nlet bar b =\n  b"
     let defs = lower source
-    let names = defs |> List.map (function TopFunction fd -> fd.Name | TopStruct sd -> sd.Name)
+    let names = defs |> List.map (function TopFunction fd | TopExportedFunction fd -> fd.Name | TopStruct sd -> sd.Name)
     Assert.Contains("foo", names)
     Assert.Contains("bar", names)
 
@@ -97,7 +97,7 @@ let ``Let binding at top level becomes zero-param function`` () =
     let defs = lower "let x = 42"
     Assert.Equal(1, defs.Length)
     match defs.[0] with
-    | TopFunction fd ->
+    | TopFunction fd | TopExportedFunction fd ->
         Assert.Equal("x", fd.Name)
         Assert.Empty(fd.Parameters)
     | _ -> failwith "expected function"
@@ -106,7 +106,7 @@ let ``Let binding at top level becomes zero-param function`` () =
 let ``Multiple nested functions all get hoisted`` () =
     let source = "let compute a =\n  let step1 x =\n    x\n  let step2 y =\n    y\n  step1 a"
     let defs = lower source
-    let names = defs |> List.map (function TopFunction fd -> fd.Name | TopStruct sd -> sd.Name)
+    let names = defs |> List.map (function TopFunction fd | TopExportedFunction fd -> fd.Name | TopStruct sd -> sd.Name)
     Assert.Contains("compute$step1", names)
     Assert.Contains("compute$step2", names)
     Assert.Contains("compute", names)
@@ -145,8 +145,8 @@ let ``Roundtrip preserves function call in body`` () =
     let hasCall =
         outer.Function.Body |> Seq.exists (fun e ->
             e.KindCase = Furst.Expression.KindOneofCase.FunctionCall
-            && e.FunctionCall.Name = "inner")
-    Assert.True(hasCall, "outer body should call inner")
+            && e.FunctionCall.Name = "outer$inner")
+    Assert.True(hasCall, "outer body should call outer$inner (mangled name)")
 
 [<Fact>]
 let ``Roundtrip multiple functions`` () =

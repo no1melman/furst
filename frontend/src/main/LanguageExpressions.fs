@@ -70,13 +70,16 @@ type BodyExpression = BodyExpression of Expression list
       Name: string
       Fields: (string * TypeDefinitions) list
     }
-  and FunctionDefinition =
+  and FunctionDetails =
     {
       Identifier: string
       Type: TypeDefinitions
       Parameters: ParameterExpression list
       Body: BodyExpression
     }
+  and FunctionDefinition =
+    | InternalFuncDef of FunctionDetails
+    | ExportedFuncDef of FunctionDetails
     // Building FunctionDefinition from Row:
     // After parsing + nesting (via TestTwoPhase.nestRows), indented continuations
     // are already in row.Body. Example:
@@ -102,19 +105,19 @@ type BodyExpression = BodyExpression of Expression list
     // 4. Return Some FunctionDefinition or None
 
     static member IsFunctionDefinition (row: Row) =
-      match row.Expressions |> List.map _.Token with
+      let tokens = row.Expressions |> List.map _.Token
+      // strip leading Export if present
+      let tokens = match tokens with Export :: rest -> rest | t -> t
+      match tokens with
       | [ Let; Name _; Assignment ] ->
-          // Variable binding with no params - only function if has body
           not row.Body.IsEmpty
       | Let :: Name _ :: rest ->
-          // Extract tokens between function name and Assignment
           let paramsBeforeAssignment = rest |> List.takeWhile ((<>) Assignment)
           if paramsBeforeAssignment.IsEmpty then
-              // No params, check if has body
               not row.Body.IsEmpty
           else
-              // Has params - it's a function
-              let paramTokens = row.Expressions |> List.skip 2 |> List.takeWhile (fun t -> t.Token <> Assignment)
+              let skipCount = match row.Expressions |> List.map _.Token with Export :: _ -> 3 | _ -> 2
+              let paramTokens = row.Expressions |> List.skip skipCount |> List.takeWhile (fun t -> t.Token <> Assignment)
               FunctionDefinition.IsParameterListExpression paramTokens
       | _ -> false
     static member IsParameterListExpression (tokens: TokenWithMetadata list) =
@@ -148,7 +151,7 @@ type BodyExpression = BodyExpression of Expression list
           
   and Expression =
     | LetBindingExpression of LetBinding
-    | FunctionExpression of FunctionDefinition
+    | FunctionDefinitionExpression of FunctionDefinition
     | FunctionCallExpression of FunctionCall
     | OperatorExpression of Operation
     | IdentifierExpression of string
@@ -273,9 +276,12 @@ let rec rowToExpression (row: Row) : Result<ExpressionNode, CompileError> =
     // let x = value (no body = variable binding)
     | Let :: Name (Word name) :: Assignment :: valueToks when row.Body.IsEmpty ->
         buildLetBinding name valueToks row
+    // export let f params = body (exported function)
+    | Export :: Let :: Name (Word _) :: _ when FunctionDefinition.IsFunctionDefinition row ->
+        buildFunctionDefinition row true
     // let f params = body (has body = function)
-    | Let :: Name (Word name) :: rest when FunctionDefinition.IsFunctionDefinition row ->
-        buildFunctionDefinition row
+    | Let :: Name (Word _) :: _ when FunctionDefinition.IsFunctionDefinition row ->
+        buildFunctionDefinition row false
     // struct X { ... }
     | Struct :: Name (Word name) :: _ ->
         buildStructDefinition name row
@@ -397,32 +403,33 @@ and parseExpression (tokens: TokenWithMetadata list) : Result<ExpressionNode, Co
     | _ ->
         Result.Error (tokenError "Unrecognized expression" tokens.Head)
 
-and buildFunctionDefinition (row: Row) : Result<ExpressionNode, CompileError> =
+and buildFunctionDefinition (row: Row) (isExported: bool) : Result<ExpressionNode, CompileError> =
     let tokens = tokensFromRow row
+    // strip Export token if present
+    let tokens = match tokens with Export :: rest -> rest | t -> t
     match tokens with
     | Let :: Name (Word funcName) :: rest ->
-        // Extract parameters from rest (before Assignment)
         let paramsAndAssignment = rest |> List.takeWhile ((<>) Assignment)
         let parameters = extractParameters paramsAndAssignment
 
-        // Build body expressions from nested rows
         let bodyResults = row.Body |> List.map rowToExpression
 
-        // Collect errors or successes
         let errors = bodyResults |> List.choose (function Error e -> Some e | _ -> None)
         if not errors.IsEmpty then
-            Result.Error errors.Head  // Return first error
+            Result.Error errors.Head
         else
             let bodyExprNodes = bodyResults |> List.choose (function Ok e -> Some e | _ -> None)
             let bodyExprs = bodyExprNodes |> List.map _.Expr
             let loc = rowLocation row
+            let details = {
+                Identifier = funcName
+                Type = Inferred
+                Parameters = parameters
+                Body = BodyExpression bodyExprs
+            }
+            let funcDef = if isExported then ExportedFuncDef details else InternalFuncDef details
             Result.Ok {
-                Expr = FunctionExpression {
-                    Identifier = funcName
-                    Type = Inferred
-                    Parameters = parameters
-                    Body = BodyExpression bodyExprs
-                }
+                Expr = FunctionDefinitionExpression funcDef
                 Location = loc
             }
     | _ ->

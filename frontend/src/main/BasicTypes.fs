@@ -16,6 +16,7 @@ type NumberValue =
   | FloatValue of float
 
 type Tokens =
+  | Export
   | Let
   | Struct
   | OpenBrace

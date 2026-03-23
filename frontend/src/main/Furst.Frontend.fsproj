@@ -11,8 +11,10 @@
     <Compile Include="CommonParsers.fs" />
     <Compile Include="StructParser.fs" />
     <Compile Include="TestTwoPhase.fs" />
+    <Compile Include="TypeInference.fs" />
     <Compile Include="Lowering.fs" />
     <Compile Include="FsoWriter.fs" />
+    <Compile Include="ProjectConfig.fs" />
     <Compile Include="Cli.fs" />
     <Compile Include="Program.fs" />
   </ItemGroup>
@@ -24,6 +26,7 @@
   <ItemGroup>
     <PackageReference Include="FParsec" Version="1.1.1" />
     <PackageReference Include="Google.Protobuf" Version="3.29.3" />
+    <PackageReference Include="YamlDotNet" Version="16.3.0" />
   </ItemGroup>
 
 </Project>

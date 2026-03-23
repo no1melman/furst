@@ -36,16 +36,22 @@ let parameterDefinitionParser =
   |>> List.collect id
  
 let letBlockParser =
-  pipe5
-    (letWordTokenParser <?> "Expecting let keyword" .>> pManyWhitespace)
-    (wordTokenParser <?> "Expecting variable identifier" .>> pManyWhitespace)
-    (opt (parameterDefinitionParser .>> pManyWhitespace))
-    (opt (typeIdentifierTokenParser .>> pManyWhitespace1 .>>. typeChoicesTokenParser .>> pManyWhitespace1 |>> List.fromPair ) .>> pManyWhitespace)
-    assignmentSymbolTokenParser
-    (fun letToken variableName maybeParameters maybeVariableType assignment ->
-        let variableType = maybeVariableType |> Option.defaultValue []
-        let parameters = maybeParameters |> Option.defaultValue []
-        [ letToken; variableName; yield! parameters; yield! variableType; assignment ])
+  pipe2
+    (opt (exportWordTokenParser .>> pManyWhitespace))
+    (pipe5
+      (letWordTokenParser <?> "Expecting let keyword" .>> pManyWhitespace)
+      (wordTokenParser <?> "Expecting variable identifier" .>> pManyWhitespace)
+      (opt (parameterDefinitionParser .>> pManyWhitespace))
+      (opt (typeIdentifierTokenParser .>> pManyWhitespace1 .>>. typeChoicesTokenParser .>> pManyWhitespace1 |>> List.fromPair ) .>> pManyWhitespace)
+      assignmentSymbolTokenParser
+      (fun letToken variableName maybeParameters maybeVariableType assignment ->
+          let variableType = maybeVariableType |> Option.defaultValue []
+          let parameters = maybeParameters |> Option.defaultValue []
+          [ letToken; variableName; yield! parameters; yield! variableType; assignment ]))
+    (fun maybeExport tokens ->
+        match maybeExport with
+        | Some exportToken -> [ exportToken; yield! tokens ]
+        | None -> tokens)
 
 let fieldParser = 
   pipe3
@@ -80,6 +86,7 @@ let indentTokenParser =
   
 let tokenParser =
   choice [
+    exportWordTokenParser
     letWordTokenParser
     structWordTokenParser
     openBracesTokenParser
@@ -168,6 +175,7 @@ let rec rowReader (row: Row) : unit =
   row.Expressions
   |> List.iter (fun tokenWithMeta ->
        match tokenWithMeta.Token with
+       | Export
        | Let
        | Struct
        | Goto

@@ -88,7 +88,7 @@ let add a b =
         | Error e -> Assert.Fail($"AST build failed: {e.Message} at {e.Line}:{e.Column}")
         | Ok exprNode ->
             match exprNode.Expr with
-            | FunctionExpression func ->
+            | FunctionDefinitionExpression (InternalFuncDef func) ->
                 Assert.Equal("add", func.Identifier)
                 Assert.Equal(2, func.Parameters.Length)
 
@@ -99,7 +99,7 @@ let add a b =
                     | OperatorExpression binOp ->
                         Assert.Equal(Operator.Add, binOp.Operator)
                     | _ -> Assert.Fail("Expected OperatorExpression in body")
-            | _ -> Assert.Fail("Expected FunctionExpression")
+            | _ -> Assert.Fail("Expected FunctionDefinitionExpression")
 
 [<Fact>]
 let ``Empty let binding should return error`` () =
@@ -131,7 +131,7 @@ let outer a =
         | Error e -> Assert.Fail($"AST build failed: {e.Message} at {e.Line}:{e.Column}")
         | Ok exprNode ->
             match exprNode.Expr with
-            | FunctionExpression outerFunc ->
+            | FunctionDefinitionExpression (InternalFuncDef outerFunc) ->
                 Assert.Equal("outer", outerFunc.Identifier)
                 Assert.Single(outerFunc.Parameters) |> ignore
 
@@ -141,7 +141,7 @@ let outer a =
 
                     // First expression: nested function definition
                     match bodyExprs.[0] with
-                    | FunctionExpression innerFunc ->
+                    | FunctionDefinitionExpression (InternalFuncDef innerFunc) ->
                         Assert.Equal("inner", innerFunc.Identifier)
                         Assert.Single(innerFunc.Parameters) |> ignore
 
@@ -152,7 +152,7 @@ let outer a =
                             | OperatorExpression binOp ->
                                 Assert.Equal(Operator.Add, binOp.Operator)
                             | _ -> Assert.Fail("Expected OperatorExpression in inner body")
-                    | _ -> Assert.Fail("Expected nested FunctionExpression")
+                    | _ -> Assert.Fail("Expected nested FunctionDefinitionExpression")
 
                     // Second expression: function call
                     match bodyExprs.[1] with
@@ -163,7 +163,7 @@ let outer a =
                         | IdentifierExpression "a" -> ()
                         | _ -> Assert.Fail("Expected identifier 'a' as argument")
                     | _ -> Assert.Fail("Expected FunctionCallExpression")
-            | _ -> Assert.Fail("Expected FunctionExpression")
+            | _ -> Assert.Fail("Expected FunctionDefinitionExpression")
 
 [<Fact>]
 let ``ExpressionNode should have SourceLocation`` () =
@@ -195,7 +195,7 @@ let ``Function with body expression referencing literal should parse to AST`` ()
         | Error e -> Assert.Fail($"AST build failed: {e.Message}")
         | Ok exprNode ->
             match exprNode.Expr with
-            | FunctionExpression func ->
+            | FunctionDefinitionExpression (InternalFuncDef func) ->
                 Assert.Equal("x", func.Identifier)
                 Assert.Single(func.Parameters) |> ignore
                 match func.Body with
@@ -211,7 +211,7 @@ let ``Function with body expression referencing literal should parse to AST`` ()
                         | IdentifierExpression "b" -> ()
                         | _ -> Assert.Fail("Expected right to be 'b'")
                     | _ -> Assert.Fail("Expected OperatorExpression in body")
-            | _ -> Assert.Fail("Expected FunctionExpression")
+            | _ -> Assert.Fail("Expected FunctionDefinitionExpression")
 
 [<Fact>]
 let ``Subtract operator should parse to AST`` () =
@@ -318,13 +318,13 @@ let ``Untyped parameter function should parse with inferred type`` () =
         | Error e -> Assert.Fail($"AST build failed: {e.Message}")
         | Ok exprNode ->
             match exprNode.Expr with
-            | FunctionExpression func ->
+            | FunctionDefinitionExpression (InternalFuncDef func) ->
                 Assert.Equal("f", func.Identifier)
                 Assert.Single(func.Parameters) |> ignore
                 let param = func.Parameters.[0]
                 Assert.Equal(Word "a", param.Name)
                 Assert.Equal(Inferred, param.Type)
-            | _ -> Assert.Fail("Expected FunctionExpression")
+            | _ -> Assert.Fail("Expected FunctionDefinitionExpression")
 
 [<Fact>]
 let ``Struct definition should return not-yet-implemented error`` () =
@@ -352,7 +352,7 @@ let ``Function with multiple body expressions should parse`` () =
         | Error e -> Assert.Fail($"AST build failed: {e.Message}")
         | Ok exprNode ->
             match exprNode.Expr with
-            | FunctionExpression func ->
+            | FunctionDefinitionExpression (InternalFuncDef func) ->
                 match func.Body with
                 | BodyExpression exprs ->
                     Assert.Equal(2, exprs.Length)
@@ -362,7 +362,7 @@ let ``Function with multiple body expressions should parse`` () =
                     match exprs.[1] with
                     | OperatorExpression _ -> ()
                     | _ -> Assert.Fail("Expected OperatorExpression as second body expr")
-            | _ -> Assert.Fail("Expected FunctionExpression")
+            | _ -> Assert.Fail("Expected FunctionDefinitionExpression")
 
 [<Fact>]
 let ``Standalone function call should parse to AST`` () =
@@ -399,13 +399,13 @@ let ``Typed parameter function should parse with explicit type`` () =
         | Error e -> Assert.Fail($"AST build failed: {e.Message}")
         | Ok exprNode ->
             match exprNode.Expr with
-            | FunctionExpression func ->
+            | FunctionDefinitionExpression (InternalFuncDef func) ->
                 Assert.Equal("f", func.Identifier)
                 Assert.Single(func.Parameters) |> ignore
                 let param = func.Parameters.[0]
                 Assert.Equal(Word "a", param.Name)
                 Assert.Equal(I32, param.Type)
-            | _ -> Assert.Fail("Expected FunctionExpression")
+            | _ -> Assert.Fail("Expected FunctionDefinitionExpression")
 
 [<Fact>]
 let ``Function call with parenthesized expression argument`` () =
