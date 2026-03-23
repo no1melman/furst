@@ -15,3 +15,4 @@ Each ADR follows structure:
 
 - [ADR-0001](ADR-0001-symbol-tracking.md) - Symbol Tracking and Function Call Validation
 - [ADR-0002](ADR-0002-type-system.md) - Algebraic Type System and Type Inference
+- [ADR-0003](ADR-0003-async-task-scheduler.md) - Async Runtime and Task Scheduler
