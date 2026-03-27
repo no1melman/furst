@@ -22,3 +22,4 @@ Each ADR follows structure:
 | [ADR-0005](ADR-0005-resource-management.md) | Resource Management (Drop + use) | Proposed | 2026-03-24 |
 | [ADR-0006](ADR-0006-allocation-strategy.md) | Allocation Strategy | Proposed | 2026-03-24 |
 | [ADR-0007](ADR-0007-string-collection-types.md) | String and Collection Types | Proposed | 2026-03-24 |
+| [ADR-0008](ADR-0008-module-system.md) | Module System (lib + mod) | Accepted | 2026-03-27 |

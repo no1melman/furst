@@ -1,4 +1,4 @@
-# Backend Epics
+# Epics
 
 > **Rule:** Mark a feature `[x]` only after the user confirms they're happy with it. Never auto-check.
 
@@ -52,34 +52,31 @@
 - [x] 5.10 Multi-file compilation — `sources:` list in yaml, merged in order, single compilation unit
 - [x] 5.11 Workspace support — `furst-workspace.yaml` listing projects, builds all in order
 
-## Project Structure Convention
+## Epic 5b: Module System
 
-```
-myproject/
-├── furst.yaml
-├── src/
-│   └── main.fu          # entry point (executables)
-├── bin/                  # final output (executable or .a)
-└── build/                # intermediates (.fso, .o, .ll)
-```
+> ADR: [ADR-0008](docs/adr/ADR-0008-module-system.md) | Discussion: [modules-namespaces-bcl](docs/discussions/modules-namespaces-bcl.md)
 
-## Workspace Structure
+- [ ] 5b.1 `mod` keyword parsing — parse `mod Name` blocks with indentation-scoped body, dotted names (e.g. `mod Api.Types`) build hierarchy structurally
+- [ ] 5b.2 Implicit mod from filesystem — filename becomes mod name, directories extend lib path (e.g. `src/collections/list.fu` with yaml root `Furst` → lib `Furst.Collections`, mod `List`)
+- [ ] 5b.3 `lib` keyword parsing — parse `lib Path` in library projects only (compile error in executables), relative to yaml root name, overrides filesystem-derived lib path
+- [ ] 5b.4 Yaml schema update — add `library: name:` field for root lib name (library projects only). Top-level `name:` remains as project name for all project types
+- [ ] 5b.5 Visibility flip — remove `export` keyword, switch to public-by-default. Remove `ExportedFuncDef`/`TopExportedFunction` from AST and lowering, update parser and all tests
+- [ ] 5b.6 `private` keyword — private-to-mod scoping for functions and types, replaces `export` as the visibility modifier
+- [ ] 5b.7 Scoped symbol table — symbols keyed by fully qualified path (`lib.mod.name` for libraries, `mod.name` for executables), enforced declaration order (F#-style)
+- [ ] 5b.8 No-shadowing enforcement — compile error on duplicate symbol at same fully qualified path, language-wide
+- [ ] 5b.9 `open` keyword — brings direct mods under specified lib path into scope, shallow only (not sub-paths)
+- [ ] 5b.10 Qualified access — resolve `List.map`, `Furst.Collections.List.map` etc. through scoped symbol table
+- [ ] 5b.11 Additive mod merging — multiple files contribute to same mod; second file must use explicit `mod` (filesystem convention would give wrong name)
+- [ ] 5b.12 Proto/fso update — add module path and `is_private` visibility flag to .fso format (replaces lost export status)
+- [ ] 5b.13 Manifest update — `.fsi` carries fully qualified `lib.mod.function` paths, not just flat function names
+- [ ] 5b.14 Backend module-aware codegen — namespaced symbol names in LLVM IR
+- [ ] 5b.15 Entry point convention — compiler finds function named `main` in last source file's implicit mod, executable projects only
+- [ ] 5b.16 Tests — mod scoping, lib paths, open resolution, qualified access, shadowing errors, implicit mods, private visibility, additive merging, entry point
 
-```
-mycompany/
-├── furst-workspace.yaml
-├── services/
-│   ├── api/
-│   │   ├── furst.yaml   # type: executable
-│   │   └── src/main.fu
-│   └── worker/
-│       ├── furst.yaml   # type: executable
-│       └── src/main.fu
-└── libs/
-    └── shared/
-        ├── furst.yaml   # type: library
-        └── src/lib.fu
-```
+Deferred:
+- `extend mod` for cross-package module augmentation
+- Nested mods via `=` syntax
+- `internal` visibility (package-private)
 
 ## Epic 6: Type System & Operators as Functions
 
@@ -117,12 +114,42 @@ Unresolved questions:
 - should contracts support default implementations?
 - associated types?
 
+## Project Structure Convention
+
+```
+myproject/
+├── furst.yaml
+├── src/
+│   └── main.fu          # entry point (executables)
+├── bin/                  # final output (executable or .a)
+└── build/                # intermediates (.fso, .o, .ll)
+```
+
+## Workspace Structure
+
+```
+mycompany/
+├── furst-workspace.yaml
+├── services/
+│   ├── api/
+│   │   ├── furst.yaml   # type: executable
+│   │   └── src/main.fu
+│   └── worker/
+│       ├── furst.yaml   # type: executable
+│       └── src/main.fu
+└── libs/
+    └── shared/
+        ├── furst.yaml   # type: library
+        └── src/lib.fu
+```
+
 ## furst.yaml Schema
 
 ```yaml
-name: myapi
+# Executable project
+name: myapi              # project name (all project types)
 version: 0.1.0
-type: executable         # or library
+type: executable
 entry: src/main.fu
 
 targets:
@@ -130,5 +157,23 @@ targets:
     os: linux
 
 dependencies:
-  - path: ../libs/shared  # project reference (later)
+  - path: ../libs/shared  # project reference
+```
+
+```yaml
+# Library project
+name: furst-collections  # project name (used locally, e.g. output filenames)
+version: 0.1.0
+type: library
+
+library:
+  name: Furst.Collections  # fully qualified lib root (what consumers see/open)
+
+sources:
+  - src/list.fu           # → Furst.Collections.List (implicit)
+  - src/map.fu            # → Furst.Collections.Map (implicit)
+
+targets:
+  - arch: x86_64
+    os: linux
 ```

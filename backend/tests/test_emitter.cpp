@@ -99,7 +99,9 @@ TEST(Emitter, WritesLlFileWhenOutputPathSet) {
     close(fd);
     std::string path = std::string(tmp) + ".ll";
 
-    auto result = furst::compile("tests/fixtures/simple_add.fso", {.output_path = path, .target_triple = {}, .link_libs = {}, .manifests = {}});
+    auto result = furst::compile(
+        "tests/fixtures/simple_add.fso",
+        {.output_path = path, .target_triple = {}, .link_libs = {}, .manifests = {}});
     ASSERT_TRUE(result.success) << result.error_message;
     EXPECT_EQ(result.output_path, path);
 
@@ -118,7 +120,9 @@ TEST(Emitter, WritesObjectFileWhenOutputPathIsO) {
     close(fd);
     std::string path = std::string(tmp) + ".o";
 
-    auto result = furst::compile("tests/fixtures/simple_add.fso", {.output_path = path, .target_triple = {}, .link_libs = {}, .manifests = {}});
+    auto result = furst::compile(
+        "tests/fixtures/simple_add.fso",
+        {.output_path = path, .target_triple = {}, .link_libs = {}, .manifests = {}});
     ASSERT_TRUE(result.success) << result.error_message;
 
     // Check file exists and has content (ELF magic: 0x7f ELF)
@@ -138,12 +142,16 @@ TEST(Emitter, WritesObjectFileWhenOutputPathIsO) {
 // -- Optimization --
 
 TEST(Emitter, O2RemovesAllocas) {
-    auto result = furst::compile("tests/fixtures/let_binding.fso",
-                                 {.output_path = {}, .target_triple = {}, .opt_level = furst::OptLevel::O2, .link_libs = {}, .manifests = {}});
+    auto result =
+        furst::compile("tests/fixtures/let_binding.fso", {.output_path = {},
+                                                          .target_triple = {},
+                                                          .opt_level = furst::OptLevel::O2,
+                                                          .link_libs = {},
+                                                          .manifests = {}});
     ASSERT_TRUE(result.success) << result.error_message;
     // mem2reg should eliminate alloca/store/load
-    EXPECT_TRUE(result.ir.find("alloca") == std::string::npos)
-        << "O2 should eliminate allocas\n" << result.ir;
+    EXPECT_TRUE(result.ir.find("alloca") == std::string::npos) << "O2 should eliminate allocas\n"
+                                                               << result.ir;
 }
 
 // -- Debug info --

@@ -20,7 +20,7 @@ struct EmittedModule {
 enum class OptLevel : int;
 
 Result<EmittedModule, CompileError> emit_module(const ast::FurstModule& ast_module,
-                                               const std::vector<std::string>& manifests = {});
+                                                const std::vector<std::string>& manifests = {});
 
 void optimize_module(llvm::Module& module, OptLevel level);
 

@@ -8,8 +8,8 @@
 #include <llvm/MC/TargetRegistry.h>
 #include <llvm/Passes/PassBuilder.h>
 #include <llvm/Support/FileSystem.h>
-#include <llvm/Support/TargetSelect.h>
 #include <llvm/Support/raw_ostream.h>
+#include <llvm/Support/TargetSelect.h>
 #include <llvm/Target/TargetMachine.h>
 #include <llvm/Target/TargetOptions.h>
 #include <llvm/TargetParser/Host.h>
@@ -199,16 +199,17 @@ static void declare_externals(llvm::LLVMContext& ctx, llvm::Module& mod,
             }
 
             // all params are i32 for now
-            auto param_types =
-                std::vector<llvm::Type*>(static_cast<size_t>(param_count), llvm::Type::getInt32Ty(ctx));
-            auto* fn_type = llvm::FunctionType::get(llvm::Type::getInt32Ty(ctx), param_types, false);
+            auto param_types = std::vector<llvm::Type*>(static_cast<size_t>(param_count),
+                                                        llvm::Type::getInt32Ty(ctx));
+            auto* fn_type =
+                llvm::FunctionType::get(llvm::Type::getInt32Ty(ctx), param_types, false);
             llvm::Function::Create(fn_type, llvm::Function::ExternalLinkage, name, mod);
         }
     }
 }
 
 Result<EmittedModule, CompileError> emit_module(const ast::FurstModule& module,
-                                               const std::vector<std::string>& manifests) {
+                                                const std::vector<std::string>& manifests) {
     auto ctx = std::make_unique<llvm::LLVMContext>();
     auto llvm_mod = std::make_unique<llvm::Module>(module.source_file, *ctx);
 
@@ -245,9 +246,9 @@ Result<EmittedModule, CompileError> emit_module(const ast::FurstModule& module,
         auto line = static_cast<unsigned>(fn.location.start_line);
         auto* di_ret_type = dib.createBasicType("i32", 32, llvm::dwarf::DW_ATE_signed);
         auto* di_fn_type = dib.createSubroutineType(dib.getOrCreateTypeArray({di_ret_type}));
-        auto* di_sp = dib.createFunction(di_file, fn.name, fn.name, di_file, line, di_fn_type,
-                                         line, llvm::DINode::FlagPrototyped,
-                                         llvm::DISubprogram::SPFlagDefinition);
+        auto* di_sp =
+            dib.createFunction(di_file, fn.name, fn.name, di_file, line, di_fn_type, line,
+                               llvm::DINode::FlagPrototyped, llvm::DISubprogram::SPFlagDefinition);
         llvm_fn->setSubprogram(di_sp);
 
         auto dbg = DebugCtx{
@@ -362,8 +363,8 @@ Result<std::string, CompileError> emit_object(EmittedModule& emitted, const std:
         });
     }
 
-    auto* target_machine = target->createTargetMachine(
-        target_triple, "generic", "", llvm::TargetOptions{}, llvm::Reloc::PIC_);
+    auto* target_machine = target->createTargetMachine(target_triple, "generic", "",
+                                                       llvm::TargetOptions{}, llvm::Reloc::PIC_);
 
     emitted.module->setDataLayout(target_machine->createDataLayout());
 
@@ -374,8 +375,8 @@ Result<std::string, CompileError> emit_object(EmittedModule& emitted, const std:
     }
 
     auto pass = llvm::legacy::PassManager{};
-    if (target_machine->addPassesToEmitFile(pass, dest, nullptr, llvm::CodeGenFileType::ObjectFile))
-    {
+    if (target_machine->addPassesToEmitFile(pass, dest, nullptr,
+                                            llvm::CodeGenFileType::ObjectFile)) {
         return CompileError(UnsupportedExpression{
             .context = "object emission",
             .detail = "target machine cannot emit object files",

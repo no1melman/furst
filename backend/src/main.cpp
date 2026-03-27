@@ -40,11 +40,10 @@ int main(int argc, char** argv) {
         }
     }
 
-    auto result = furst::compile(
-        fso_path, {.output_path = output_path,
-                   .target_triple = target_triple,
-                   .link_libs = link_libs,
-                   .manifests = manifests});
+    auto result = furst::compile(fso_path, {.output_path = output_path,
+                                            .target_triple = target_triple,
+                                            .link_libs = link_libs,
+                                            .manifests = manifests});
 
     if (!result.success) {
         std::cerr << result.error_message << "\n";
