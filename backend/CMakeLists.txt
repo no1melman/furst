@@ -1,7 +1,11 @@
 cmake_minimum_required(VERSION 3.25)
 
+# Read version from shared VERSION file
+file(READ "${CMAKE_CURRENT_SOURCE_DIR}/../VERSION" FURST_VERSION)
+string(STRIP "${FURST_VERSION}" FURST_VERSION)
+
 project(FurstBackend
-    VERSION 0.1.0
+    VERSION ${FURST_VERSION}
     DESCRIPTION "Furst compiler backend — .fso to LLVM IR"
     LANGUAGES CXX)
 
@@ -68,17 +72,18 @@ target_link_libraries(furst_backend PUBLIC
 )
 
 # --- Backend CLI binary ---
-add_executable(furstc-backend
+add_executable(furstc
     src/main.cpp
 )
-target_link_libraries(furstc-backend PRIVATE furst_backend)
+target_link_libraries(furstc PRIVATE furst_backend)
+target_compile_definitions(furstc PRIVATE FURST_VERSION="${FURST_VERSION}")
 
 # Copy binary to root build/ dir after building
 set(ROOT_BUILD_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../build")
-add_custom_command(TARGET furstc-backend POST_BUILD
+add_custom_command(TARGET furstc POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E make_directory ${ROOT_BUILD_DIR}
-    COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:furstc-backend> ${ROOT_BUILD_DIR}/
-    COMMENT "Copying furstc-backend to ${ROOT_BUILD_DIR}"
+    COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:furstc> ${ROOT_BUILD_DIR}/
+    COMMENT "Copying furstc to ${ROOT_BUILD_DIR}"
 )
 
 # --- Tests ---

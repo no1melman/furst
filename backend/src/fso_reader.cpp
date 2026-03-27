@@ -152,12 +152,20 @@ static ast::FunctionDef map_function_def(const ::furst::FunctionDef& proto) {
         body.push_back(map_expression(e));
     }
 
+    auto mod_path = std::vector<std::string>{};
+    mod_path.reserve(proto.module_path_size());
+    for (const auto& p : proto.module_path()) {
+        mod_path.push_back(p);
+    }
+
     return ast::FunctionDef{
         .name = proto.name(),
         .return_type = map_type_ref(proto.return_type()),
         .parameters = std::move(params),
         .body = std::move(body),
         .location = map_source_location(proto.location()),
+        .module_path = std::move(mod_path),
+        .is_private = proto.is_private(),
     };
 }
 
@@ -168,10 +176,17 @@ static ast::StructDef map_struct_def(const ::furst::StructDef& proto) {
         fields.push_back(map_parameter(f));
     }
 
+    auto mod_path = std::vector<std::string>{};
+    mod_path.reserve(proto.module_path_size());
+    for (const auto& p : proto.module_path()) {
+        mod_path.push_back(p);
+    }
+
     return ast::StructDef{
         .name = proto.name(),
         .fields = std::move(fields),
         .location = map_source_location(proto.location()),
+        .module_path = std::move(mod_path),
     };
 }
 

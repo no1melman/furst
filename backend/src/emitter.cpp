@@ -20,6 +20,7 @@
 namespace furst {
 
 using NamedValues = std::unordered_map<std::string, llvm::Value*>;
+using NameMap = std::unordered_map<std::string, std::string>;
 
 // Debug info context passed through emission functions
 struct DebugCtx {
@@ -63,13 +64,15 @@ static llvm::Type* resolve_type(llvm::LLVMContext& ctx, const ast::TypeRef& type
 // Forward declaration — mutually recursive with emit_operation and emit_let_binding
 static llvm::Value* emit_expression(llvm::IRBuilder<>& builder, llvm::Module& mod,
                                     NamedValues& names, const DebugCtx& dbg,
+                                    const NameMap& name_map,
                                     const ast::Expression& expr);
 
 static llvm::Value* emit_operation(llvm::IRBuilder<>& builder, llvm::Module& mod,
                                    NamedValues& names, const DebugCtx& dbg,
+                                   const NameMap& name_map,
                                    const ast::Operation& op) {
-    auto* lhs = emit_expression(builder, mod, names, dbg, op.left);
-    auto* rhs = emit_expression(builder, mod, names, dbg, op.right);
+    auto* lhs = emit_expression(builder, mod, names, dbg, name_map, op.left);
+    auto* rhs = emit_expression(builder, mod, names, dbg, name_map, op.right);
 
     if (lhs == nullptr || rhs == nullptr) {
         return nullptr;
@@ -89,8 +92,9 @@ static llvm::Value* emit_operation(llvm::IRBuilder<>& builder, llvm::Module& mod
 
 static llvm::Value* emit_let_binding(llvm::IRBuilder<>& builder, llvm::Module& mod,
                                      NamedValues& names, const DebugCtx& dbg,
+                                     const NameMap& name_map,
                                      const ast::LetBinding& binding) {
-    auto* val = emit_expression(builder, mod, names, dbg, binding.value);
+    auto* val = emit_expression(builder, mod, names, dbg, name_map, binding.value);
     if (val == nullptr) {
         return nullptr;
     }
@@ -104,6 +108,7 @@ static llvm::Value* emit_let_binding(llvm::IRBuilder<>& builder, llvm::Module& m
 
 static llvm::Value* emit_expression(llvm::IRBuilder<>& builder, llvm::Module& mod,
                                     NamedValues& names, const DebugCtx& dbg,
+                                    const NameMap& name_map,
                                     const ast::Expression& expr) {
     if (!expr.kind) {
         return nullptr;
@@ -141,19 +146,25 @@ static llvm::Value* emit_expression(llvm::IRBuilder<>& builder, llvm::Module& mo
 
     // Binary operation
     if (std::holds_alternative<ast::Operation>(kind)) {
-        return emit_operation(builder, mod, names, dbg, std::get<ast::Operation>(kind));
+        return emit_operation(builder, mod, names, dbg, name_map, std::get<ast::Operation>(kind));
     }
 
     // Let binding
     if (std::holds_alternative<ast::LetBinding>(kind)) {
-        return emit_let_binding(builder, mod, names, dbg, std::get<ast::LetBinding>(kind));
+        return emit_let_binding(builder, mod, names, dbg, name_map, std::get<ast::LetBinding>(kind));
     }
 
     // Function call
     if (std::holds_alternative<ast::FunctionCall>(kind)) {
         const auto& call = std::get<ast::FunctionCall>(kind);
 
-        auto* callee = mod.getFunction(call.name);
+        // Resolve mangled name via name map
+        auto resolved_name = call.name;
+        auto it_nm = name_map.find(call.name);
+        if (it_nm != name_map.end()) {
+            resolved_name = it_nm->second;
+        }
+        auto* callee = mod.getFunction(resolved_name);
         if (callee == nullptr) {
             return nullptr;
         }
@@ -161,7 +172,7 @@ static llvm::Value* emit_expression(llvm::IRBuilder<>& builder, llvm::Module& mo
         auto args = std::vector<llvm::Value*>{};
         args.reserve(call.arguments.size());
         for (const auto& arg : call.arguments) {
-            auto* val = emit_expression(builder, mod, names, dbg, arg);
+            auto* val = emit_expression(builder, mod, names, dbg, name_map, arg);
             if (val == nullptr) {
                 return nullptr;
             }
@@ -225,11 +236,36 @@ Result<EmittedModule, CompileError> emit_module(const ast::FurstModule& module,
                             llvm::DEBUG_METADATA_VERSION);
     llvm_mod->addModuleFlag(llvm::Module::Warning, "Dwarf Version", 4);
 
+    // Build name map: original name -> mangled name
+    auto name_map = NameMap{};
+    for (const auto& def : module.definitions) {
+        if (!std::holds_alternative<ast::FunctionDef>(def)) continue;
+        const auto& fn = std::get<ast::FunctionDef>(def);
+        if (fn.name != "main" && !fn.module_path.empty()) {
+            auto mangled = std::string{};
+            for (const auto& part : fn.module_path) {
+                mangled += part + "__";
+            }
+            mangled += fn.name;
+            name_map[fn.name] = mangled;
+        }
+    }
+
     for (const auto& def : module.definitions) {
         if (!std::holds_alternative<ast::FunctionDef>(def)) {
             continue;
         }
         const auto& fn = std::get<ast::FunctionDef>(def);
+
+        // Mangle name with module path (e.g. Math__add), except bare "main"
+        auto mangled_name = fn.name;
+        if (fn.name != "main" && !fn.module_path.empty()) {
+            mangled_name = "";
+            for (const auto& part : fn.module_path) {
+                mangled_name += part + "__";
+            }
+            mangled_name += fn.name;
+        }
 
         auto param_types = std::vector<llvm::Type*>{};
         param_types.reserve(fn.parameters.size());
@@ -239,15 +275,16 @@ Result<EmittedModule, CompileError> emit_module(const ast::FurstModule& module,
 
         auto* ret_type = resolve_type(*ctx, fn.return_type);
         auto* fn_type = llvm::FunctionType::get(ret_type, param_types, false);
+        auto linkage = fn.is_private ? llvm::Function::InternalLinkage : llvm::Function::ExternalLinkage;
         auto* llvm_fn =
-            llvm::Function::Create(fn_type, llvm::Function::ExternalLinkage, fn.name, *llvm_mod);
+            llvm::Function::Create(fn_type, linkage, mangled_name, *llvm_mod);
 
         // Create debug info for function
         auto line = static_cast<unsigned>(fn.location.start_line);
         auto* di_ret_type = dib.createBasicType("i32", 32, llvm::dwarf::DW_ATE_signed);
         auto* di_fn_type = dib.createSubroutineType(dib.getOrCreateTypeArray({di_ret_type}));
         auto* di_sp =
-            dib.createFunction(di_file, fn.name, fn.name, di_file, line, di_fn_type, line,
+            dib.createFunction(di_file, fn.name, mangled_name, di_file, line, di_fn_type, line,
                                llvm::DINode::FlagPrototyped, llvm::DISubprogram::SPFlagDefinition);
         llvm_fn->setSubprogram(di_sp);
 
@@ -274,7 +311,7 @@ Result<EmittedModule, CompileError> emit_module(const ast::FurstModule& module,
 
         llvm::Value* last_val = nullptr;
         for (const auto& expr : fn.body) {
-            last_val = emit_expression(builder, *llvm_mod, names, dbg, expr);
+            last_val = emit_expression(builder, *llvm_mod, names, dbg, name_map, expr);
         }
 
         if (last_val != nullptr) {

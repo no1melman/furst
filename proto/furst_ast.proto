@@ -95,12 +95,15 @@ message FunctionDef {
   repeated Parameter parameters = 3;
   repeated Expression body = 4;
   SourceLocation location = 5;
+  repeated string module_path = 6;
+  bool is_private = 7;
 }
 
 message StructDef {
   string name = 1;
   repeated Parameter fields = 2;
   SourceLocation location = 3;
+  repeated string module_path = 4;
 }
 
 message TopLevel {

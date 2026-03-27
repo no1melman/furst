@@ -47,18 +47,20 @@ namespace Furst {
             "MhEuZnVyc3QuRXhwcmVzc2lvbhIbCgJvcBgCIAEoDjIPLmZ1cnN0Lk9wZXJh",
             "dG9yEiAKBXJpZ2h0GAMgASgLMhEuZnVyc3QuRXhwcmVzc2lvbiI3CglQYXJh",
             "bWV0ZXISDAoEbmFtZRgBIAEoCRIcCgR0eXBlGAIgASgLMg4uZnVyc3QuVHlw",
-            "ZVJlZiKwAQoLRnVuY3Rpb25EZWYSDAoEbmFtZRgBIAEoCRIjCgtyZXR1cm5f",
+            "ZVJlZiLZAQoLRnVuY3Rpb25EZWYSDAoEbmFtZRgBIAEoCRIjCgtyZXR1cm5f",
             "dHlwZRgCIAEoCzIOLmZ1cnN0LlR5cGVSZWYSJAoKcGFyYW1ldGVycxgDIAMo",
             "CzIQLmZ1cnN0LlBhcmFtZXRlchIfCgRib2R5GAQgAygLMhEuZnVyc3QuRXhw",
             "cmVzc2lvbhInCghsb2NhdGlvbhgFIAEoCzIVLmZ1cnN0LlNvdXJjZUxvY2F0",
-            "aW9uImQKCVN0cnVjdERlZhIMCgRuYW1lGAEgASgJEiAKBmZpZWxkcxgCIAMo",
-            "CzIQLmZ1cnN0LlBhcmFtZXRlchInCghsb2NhdGlvbhgDIAEoCzIVLmZ1cnN0",
-            "LlNvdXJjZUxvY2F0aW9uImIKCFRvcExldmVsEiYKCGZ1bmN0aW9uGAEgASgL",
-            "MhIuZnVyc3QuRnVuY3Rpb25EZWZIABImCgpzdHJ1Y3RfZGVmGAIgASgLMhAu",
-            "ZnVyc3QuU3RydWN0RGVmSABCBgoEa2luZCJICgtGdXJzdE1vZHVsZRITCgtz",
-            "b3VyY2VfZmlsZRgBIAEoCRIkCgtkZWZpbml0aW9ucxgCIAMoCzIPLmZ1cnN0",
-            "LlRvcExldmVsKjgKCE9wZXJhdG9yEgoKBk9QX0FERBAAEg8KC09QX1NVQlRS",
-            "QUNUEAESDwoLT1BfTVVMVElQTFkQAkID+AEBYgZwcm90bzM="));
+            "aW9uEhMKC21vZHVsZV9wYXRoGAYgAygJEhIKCmlzX3ByaXZhdGUYByABKAgi",
+            "eQoJU3RydWN0RGVmEgwKBG5hbWUYASABKAkSIAoGZmllbGRzGAIgAygLMhAu",
+            "ZnVyc3QuUGFyYW1ldGVyEicKCGxvY2F0aW9uGAMgASgLMhUuZnVyc3QuU291",
+            "cmNlTG9jYXRpb24SEwoLbW9kdWxlX3BhdGgYBCADKAkiYgoIVG9wTGV2ZWwS",
+            "JgoIZnVuY3Rpb24YASABKAsyEi5mdXJzdC5GdW5jdGlvbkRlZkgAEiYKCnN0",
+            "cnVjdF9kZWYYAiABKAsyEC5mdXJzdC5TdHJ1Y3REZWZIAEIGCgRraW5kIkgK",
+            "C0Z1cnN0TW9kdWxlEhMKC3NvdXJjZV9maWxlGAEgASgJEiQKC2RlZmluaXRp",
+            "b25zGAIgAygLMg8uZnVyc3QuVG9wTGV2ZWwqOAoIT3BlcmF0b3ISCgoGT1Bf",
+            "QUREEAASDwoLT1BfU1VCVFJBQ1QQARIPCgtPUF9NVUxUSVBMWRACQgP4AQFi",
+            "BnByb3RvMw=="));
       descriptor = pbr::FileDescriptor.FromGeneratedCode(descriptorData,
           new pbr::FileDescriptor[] { },
           new pbr::GeneratedClrTypeInfo(new[] {typeof(global::Furst.Operator), }, null, new pbr::GeneratedClrTypeInfo[] {
@@ -71,8 +73,8 @@ namespace Furst {
             new pbr::GeneratedClrTypeInfo(typeof(global::Furst.FunctionCall), global::Furst.FunctionCall.Parser, new[]{ "Name", "Arguments" }, null, null, null, null),
             new pbr::GeneratedClrTypeInfo(typeof(global::Furst.Operation), global::Furst.Operation.Parser, new[]{ "Left", "Op", "Right" }, null, null, null, null),
             new pbr::GeneratedClrTypeInfo(typeof(global::Furst.Parameter), global::Furst.Parameter.Parser, new[]{ "Name", "Type" }, null, null, null, null),
-            new pbr::GeneratedClrTypeInfo(typeof(global::Furst.FunctionDef), global::Furst.FunctionDef.Parser, new[]{ "Name", "ReturnType", "Parameters", "Body", "Location" }, null, null, null, null),
-            new pbr::GeneratedClrTypeInfo(typeof(global::Furst.StructDef), global::Furst.StructDef.Parser, new[]{ "Name", "Fields", "Location" }, null, null, null, null),
+            new pbr::GeneratedClrTypeInfo(typeof(global::Furst.FunctionDef), global::Furst.FunctionDef.Parser, new[]{ "Name", "ReturnType", "Parameters", "Body", "Location", "ModulePath", "IsPrivate" }, null, null, null, null),
+            new pbr::GeneratedClrTypeInfo(typeof(global::Furst.StructDef), global::Furst.StructDef.Parser, new[]{ "Name", "Fields", "Location", "ModulePath" }, null, null, null, null),
             new pbr::GeneratedClrTypeInfo(typeof(global::Furst.TopLevel), global::Furst.TopLevel.Parser, new[]{ "Function", "StructDef" }, new[]{ "Kind" }, null, null, null),
             new pbr::GeneratedClrTypeInfo(typeof(global::Furst.FurstModule), global::Furst.FurstModule.Parser, new[]{ "SourceFile", "Definitions" }, null, null, null, null)
           }));
@@ -2893,6 +2895,8 @@ namespace Furst {
       parameters_ = other.parameters_.Clone();
       body_ = other.body_.Clone();
       location_ = other.location_ != null ? other.location_.Clone() : null;
+      modulePath_ = other.modulePath_.Clone();
+      isPrivate_ = other.isPrivate_;
       _unknownFields = pb::UnknownFieldSet.Clone(other._unknownFields);
     }
 
@@ -2960,6 +2964,29 @@ namespace Furst {
       }
     }
 
+    /// <summary>Field number for the "module_path" field.</summary>
+    public const int ModulePathFieldNumber = 6;
+    private static readonly pb::FieldCodec<string> _repeated_modulePath_codec
+        = pb::FieldCodec.ForString(50);
+    private readonly pbc::RepeatedField<string> modulePath_ = new pbc::RepeatedField<string>();
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public pbc::RepeatedField<string> ModulePath {
+      get { return modulePath_; }
+    }
+
+    /// <summary>Field number for the "is_private" field.</summary>
+    public const int IsPrivateFieldNumber = 7;
+    private bool isPrivate_;
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public bool IsPrivate {
+      get { return isPrivate_; }
+      set {
+        isPrivate_ = value;
+      }
+    }
+
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
     [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
     public override bool Equals(object other) {
@@ -2980,6 +3007,8 @@ namespace Furst {
       if(!parameters_.Equals(other.parameters_)) return false;
       if(!body_.Equals(other.body_)) return false;
       if (!object.Equals(Location, other.Location)) return false;
+      if(!modulePath_.Equals(other.modulePath_)) return false;
+      if (IsPrivate != other.IsPrivate) return false;
       return Equals(_unknownFields, other._unknownFields);
     }
 
@@ -2992,6 +3021,8 @@ namespace Furst {
       hash ^= parameters_.GetHashCode();
       hash ^= body_.GetHashCode();
       if (location_ != null) hash ^= Location.GetHashCode();
+      hash ^= modulePath_.GetHashCode();
+      if (IsPrivate != false) hash ^= IsPrivate.GetHashCode();
       if (_unknownFields != null) {
         hash ^= _unknownFields.GetHashCode();
       }
@@ -3024,6 +3055,11 @@ namespace Furst {
         output.WriteRawTag(42);
         output.WriteMessage(Location);
       }
+      modulePath_.WriteTo(output, _repeated_modulePath_codec);
+      if (IsPrivate != false) {
+        output.WriteRawTag(56);
+        output.WriteBool(IsPrivate);
+      }
       if (_unknownFields != null) {
         _unknownFields.WriteTo(output);
       }
@@ -3048,6 +3084,11 @@ namespace Furst {
         output.WriteRawTag(42);
         output.WriteMessage(Location);
       }
+      modulePath_.WriteTo(ref output, _repeated_modulePath_codec);
+      if (IsPrivate != false) {
+        output.WriteRawTag(56);
+        output.WriteBool(IsPrivate);
+      }
       if (_unknownFields != null) {
         _unknownFields.WriteTo(ref output);
       }
@@ -3068,6 +3109,10 @@ namespace Furst {
       size += body_.CalculateSize(_repeated_body_codec);
       if (location_ != null) {
         size += 1 + pb::CodedOutputStream.ComputeMessageSize(Location);
+      }
+      size += modulePath_.CalculateSize(_repeated_modulePath_codec);
+      if (IsPrivate != false) {
+        size += 1 + 1;
       }
       if (_unknownFields != null) {
         size += _unknownFields.CalculateSize();
@@ -3097,6 +3142,10 @@ namespace Furst {
           Location = new global::Furst.SourceLocation();
         }
         Location.MergeFrom(other.Location);
+      }
+      modulePath_.Add(other.modulePath_);
+      if (other.IsPrivate != false) {
+        IsPrivate = other.IsPrivate;
       }
       _unknownFields = pb::UnknownFieldSet.MergeFrom(_unknownFields, other._unknownFields);
     }
@@ -3141,6 +3190,14 @@ namespace Furst {
               Location = new global::Furst.SourceLocation();
             }
             input.ReadMessage(Location);
+            break;
+          }
+          case 50: {
+            modulePath_.AddEntriesFrom(input, _repeated_modulePath_codec);
+            break;
+          }
+          case 56: {
+            IsPrivate = input.ReadBool();
             break;
           }
         }
@@ -3188,6 +3245,14 @@ namespace Furst {
             input.ReadMessage(Location);
             break;
           }
+          case 50: {
+            modulePath_.AddEntriesFrom(ref input, _repeated_modulePath_codec);
+            break;
+          }
+          case 56: {
+            IsPrivate = input.ReadBool();
+            break;
+          }
         }
       }
     }
@@ -3233,6 +3298,7 @@ namespace Furst {
       name_ = other.name_;
       fields_ = other.fields_.Clone();
       location_ = other.location_ != null ? other.location_.Clone() : null;
+      modulePath_ = other.modulePath_.Clone();
       _unknownFields = pb::UnknownFieldSet.Clone(other._unknownFields);
     }
 
@@ -3277,6 +3343,17 @@ namespace Furst {
       }
     }
 
+    /// <summary>Field number for the "module_path" field.</summary>
+    public const int ModulePathFieldNumber = 4;
+    private static readonly pb::FieldCodec<string> _repeated_modulePath_codec
+        = pb::FieldCodec.ForString(34);
+    private readonly pbc::RepeatedField<string> modulePath_ = new pbc::RepeatedField<string>();
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public pbc::RepeatedField<string> ModulePath {
+      get { return modulePath_; }
+    }
+
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
     [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
     public override bool Equals(object other) {
@@ -3295,6 +3372,7 @@ namespace Furst {
       if (Name != other.Name) return false;
       if(!fields_.Equals(other.fields_)) return false;
       if (!object.Equals(Location, other.Location)) return false;
+      if(!modulePath_.Equals(other.modulePath_)) return false;
       return Equals(_unknownFields, other._unknownFields);
     }
 
@@ -3305,6 +3383,7 @@ namespace Furst {
       if (Name.Length != 0) hash ^= Name.GetHashCode();
       hash ^= fields_.GetHashCode();
       if (location_ != null) hash ^= Location.GetHashCode();
+      hash ^= modulePath_.GetHashCode();
       if (_unknownFields != null) {
         hash ^= _unknownFields.GetHashCode();
       }
@@ -3332,6 +3411,7 @@ namespace Furst {
         output.WriteRawTag(26);
         output.WriteMessage(Location);
       }
+      modulePath_.WriteTo(output, _repeated_modulePath_codec);
       if (_unknownFields != null) {
         _unknownFields.WriteTo(output);
       }
@@ -3351,6 +3431,7 @@ namespace Furst {
         output.WriteRawTag(26);
         output.WriteMessage(Location);
       }
+      modulePath_.WriteTo(ref output, _repeated_modulePath_codec);
       if (_unknownFields != null) {
         _unknownFields.WriteTo(ref output);
       }
@@ -3368,6 +3449,7 @@ namespace Furst {
       if (location_ != null) {
         size += 1 + pb::CodedOutputStream.ComputeMessageSize(Location);
       }
+      size += modulePath_.CalculateSize(_repeated_modulePath_codec);
       if (_unknownFields != null) {
         size += _unknownFields.CalculateSize();
       }
@@ -3390,6 +3472,7 @@ namespace Furst {
         }
         Location.MergeFrom(other.Location);
       }
+      modulePath_.Add(other.modulePath_);
       _unknownFields = pb::UnknownFieldSet.MergeFrom(_unknownFields, other._unknownFields);
     }
 
@@ -3424,6 +3507,10 @@ namespace Furst {
             input.ReadMessage(Location);
             break;
           }
+          case 34: {
+            modulePath_.AddEntriesFrom(input, _repeated_modulePath_codec);
+            break;
+          }
         }
       }
     #endif
@@ -3456,6 +3543,10 @@ namespace Furst {
               Location = new global::Furst.SourceLocation();
             }
             input.ReadMessage(Location);
+            break;
+          }
+          case 34: {
+            modulePath_.AddEntriesFrom(ref input, _repeated_modulePath_codec);
             break;
           }
         }

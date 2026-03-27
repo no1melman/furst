@@ -2,7 +2,6 @@ module Cli
 
 open System
 open System.IO
-open System.Text.RegularExpressions
 open Types
 open Ast
 open AstBuilder
@@ -18,6 +17,7 @@ type CliCommand =
     | Lex of string
     | Ast of string
     | New of NewOptions
+    | Version
     | Help
     | Error of string
 
@@ -61,35 +61,16 @@ let parseArgs (argv: string array) =
     | [ "check"; file ] -> Check file
     | [ "lex"; file ] -> Lex file
     | [ "ast"; file ] -> Ast file
+    | [ "--version" ] | [ "-V" ] -> Version
     | [ "help" ] | [ "--help" ] | [ "-h" ] | [] -> Help
     | cmd :: _ -> Error $"Unknown command: {cmd}"
 
-let readFile (path: string) =
-    if File.Exists path then
-        Ok (File.ReadAllText path)
-    else
-        Result.Error $"File not found: {path}"
-
-let formatError (source: string) (err: CompileError) =
-    let (Line line) = err.Line
-    let (Column col) = err.Column
-    let (TokenLength len) = err.Length
-    let lines = source.Split('\n')
-    let lineIdx = int line - 1
-    eprintfn "Error: %s" err.Message
-    eprintfn "  at line %d, column %d" line col
-    if lineIdx >= 0 && lineIdx < lines.Length then
-        let srcLine = lines.[lineIdx]
-        eprintfn "  | %s" srcLine
-        let carets = System.String(' ', int col) + System.String('^', max 1 len)
-        eprintfn "  | %s" carets
-
 let runLex (file: string) =
-    match readFile file with
-    | Result.Error e -> eprintfn "%s" e; 2
+    match Compiler.readFile file with
+    | Result.Error error -> eprintfn "%s" error; 2
     | Ok source ->
         match Lexer.createAST file source with
-        | Result.Error e -> eprintfn "Parse error: %s" e; 1
+        | Result.Error error -> eprintfn "Parse error: %s" error; 1
         | Ok rows ->
             rows |> List.iter Lexer.rowReader
             0
@@ -130,160 +111,76 @@ let rec printExpr (indent: int) (expr: Expression) =
         for (name, typ) in structDef.Fields do
             printfn "%s  Field \"%s\" : %A" pad name typ
     | ModuleDeclaration parts ->
-        printfn "%smod %s" pad (System.String.Join(".", parts))
+        printfn "%smod %s" pad (String.Join(".", parts))
     | OpenDeclaration parts ->
-        printfn "%sopen %s" pad (System.String.Join(".", parts))
+        printfn "%sopen %s" pad (String.Join(".", parts))
 
 let runAst (file: string) =
-    match readFile file with
-    | Result.Error e -> eprintfn "%s" e; 2
+    match Compiler.readFile file with
+    | Result.Error error -> eprintfn "%s" error; 2
     | Ok source ->
         match Lexer.createAST file source with
-        | Result.Error e -> eprintfn "Parse error: %s" e; 1
+        | Result.Error error -> eprintfn "Parse error: %s" error; 1
         | Ok rows ->
             let results = rows |> List.map rowToExpression
             let mutable hasError = false
-            for r in results do
-                match r with
+            for result in results do
+                match result with
                 | Ok node -> printExpr 0 node.Expr
-                | Result.Error err ->
-                    formatError source err
+                | Result.Error error ->
+                    Compiler.formatError source error
                     hasError <- true
             if hasError then 1 else 0
 
 let runCheck (file: string) =
-    match readFile file with
-    | Result.Error e -> eprintfn "%s" e; 2
+    match Compiler.readFile file with
+    | Result.Error error -> eprintfn "%s" error; 2
     | Ok source ->
         match Lexer.createAST file source with
-        | Result.Error e -> eprintfn "Parse error: %s" e; 1
+        | Result.Error error -> eprintfn "Parse error: %s" error; 1
         | Ok rows ->
             let results = rows |> List.map rowToExpression
-            let errors = results |> List.choose (function Result.Error e -> Some e | _ -> None)
+            let errors = results |> List.choose (function Result.Error error -> Some error | _ -> None)
             match errors with
             | [] -> printfn "OK"; 0
-            | errs ->
-                for err in errs do
-                    formatError source err
+            | errors ->
+                for error in errors do
+                    Compiler.formatError source error
                 1
-
-// -- Module path derivation --
-
-let deriveModulePath (filePath: string) : ModulePath =
-    // e.g. src/collections/list.fu → ["Collections"; "List"]
-    // e.g. src/main.fu → ["Main"]
-    let normalized = filePath.Replace('\\', '/')
-    // strip src/ prefix if present
-    let stripped =
-        match normalized.IndexOf("src/") with
-        | i when i >= 0 -> normalized.Substring(i + 4)
-        | _ -> normalized
-    // remove .fu extension
-    let noExt = Path.GetFileNameWithoutExtension(stripped) |> fun name ->
-        let dir = Path.GetDirectoryName(stripped)
-        if String.IsNullOrEmpty(dir) then name
-        else dir.Replace('\\', '/') + "/" + name
-    // split on / and capitalize
-    let parts =
-        noExt.Split('/')
-        |> Array.filter (fun s -> s <> "")
-        |> Array.map (fun s -> string (Char.ToUpper s.[0]) + s.[1..])
-        |> Array.toList
-    ModulePath parts
-
-// -- Per-file parsing --
-
-let parseFile (filePath: string) : Result<ExpressionNode list * string, string> =
-    match readFile filePath with
-    | Result.Error e -> Result.Error e
-    | Ok source ->
-        match Lexer.createAST filePath source with
-        | Result.Error e -> Result.Error $"Parse error in {filePath}: {e}"
-        | Ok rows ->
-            let results = rows |> List.map rowToExpression
-            let errors = results |> List.choose (function Result.Error e -> Some e | _ -> None)
-            match errors with
-            | e :: _ ->
-                formatError source e
-                Result.Error $"AST error in {filePath}: {e.Message}"
-            | [] ->
-                let nodes = results |> List.choose (function Ok n -> Some n | _ -> None)
-                Ok (nodes, source)
-
-// Split nodes by ModuleDeclaration, lowering each group with appropriate module path
-let lowerFileNodes (baseModulePath: ModulePath) (nodes: ExpressionNode list) : Lowered.TopLevelDef list =
-    let mutable currentPath = baseModulePath
-    let mutable currentGroup : ExpressionNode list = []
-    let mutable allLowered : Lowered.TopLevelDef list = []
-
-    for node in nodes do
-        match node.Expr with
-        | ModuleDeclaration parts ->
-            // lower accumulated group with current path
-            if not currentGroup.IsEmpty then
-                let lowered = Pipeline.lower currentPath (List.rev currentGroup)
-                allLowered <- allLowered @ lowered
-                currentGroup <- []
-            currentPath <- ModulePath parts
-        | OpenDeclaration _ ->
-            // open declarations pass through to lowering (handled at symbol table level)
-            currentGroup <- node :: currentGroup
-        | _ ->
-            currentGroup <- node :: currentGroup
-
-    // lower remaining group
-    if not currentGroup.IsEmpty then
-        let lowered = Pipeline.lower currentPath (List.rev currentGroup)
-        allLowered <- allLowered @ lowered
-
-    allLowered
 
 // -- Backend invocation helpers --
 
 let private invokeBackend (fsoPath: string) (outputPath: string) (targetTriple: string option) (linkLibs: string list) (manifests: string list) =
-    let targetArgs = match targetTriple with Some t -> $" --target {t}" | None -> ""
-    let linkArgs = linkLibs |> List.map (fun l -> $" --link {l}") |> String.concat ""
-    let manifestArgs = manifests |> List.map (fun m -> $" --manifest {m}") |> String.concat ""
-    let psi = System.Diagnostics.ProcessStartInfo("furstc-backend", $"{fsoPath} {outputPath}{targetArgs}{linkArgs}{manifestArgs}")
+    let targetArgs = match targetTriple with Some triple -> $" --target {triple}" | None -> ""
+    let linkArgs = linkLibs |> List.map (fun lib -> $" --link {lib}") |> String.concat ""
+    let manifestArgs = manifests |> List.map (fun manifest -> $" --manifest {manifest}") |> String.concat ""
+    let psi = Diagnostics.ProcessStartInfo("furstc", $"{fsoPath} {outputPath}{targetArgs}{linkArgs}{manifestArgs}")
     psi.RedirectStandardError <- true
     psi.UseShellExecute <- false
     try
-        let proc = System.Diagnostics.Process.Start(psi)
+        let proc = Diagnostics.Process.Start(psi)
         proc.WaitForExit()
         if proc.ExitCode <> 0 then
-            let err = proc.StandardError.ReadToEnd()
-            Result.Error $"backend error: {err}"
+            let error = proc.StandardError.ReadToEnd()
+            Result.Error $"backend error: {error}"
         else
             Result.Ok outputPath
     with
-    | :? System.ComponentModel.Win32Exception ->
-        Result.Error "furstc-backend not found in PATH"
+    | :? ComponentModel.Win32Exception ->
+        Result.Error "furstc not found in PATH"
 
 let private invokeAr (objPaths: string list) (archivePath: string) =
     let args = objPaths |> String.concat " "
-    let psi = System.Diagnostics.ProcessStartInfo("ar", $"rcs {archivePath} {args}")
+    let psi = Diagnostics.ProcessStartInfo("ar", $"rcs {archivePath} {args}")
     psi.RedirectStandardError <- true
     psi.UseShellExecute <- false
-    let proc = System.Diagnostics.Process.Start(psi)
+    let proc = Diagnostics.Process.Start(psi)
     proc.WaitForExit()
     if proc.ExitCode <> 0 then
-        let err = proc.StandardError.ReadToEnd()
-        Result.Error $"ar error: {err}"
+        let error = proc.StandardError.ReadToEnd()
+        Result.Error $"ar error: {error}"
     else
         Result.Ok archivePath
-
-let private invokeLinker (objPaths: string list) (linkLibs: string list) (exePath: string) =
-    let allInputs = (objPaths @ linkLibs) |> String.concat " "
-    let psi = System.Diagnostics.ProcessStartInfo("cc", $"-o {exePath} {allInputs}")
-    psi.RedirectStandardError <- true
-    psi.UseShellExecute <- false
-    let proc = System.Diagnostics.Process.Start(psi)
-    proc.WaitForExit()
-    if proc.ExitCode <> 0 then
-        let err = proc.StandardError.ReadToEnd()
-        Result.Error $"linker error: {err}"
-    else
-        Result.Ok exePath
 
 // -- Build command --
 
@@ -296,16 +193,15 @@ let runBuild (files: string list) (projectName: string) (targetTriple: string op
 
     let manifestPaths = depPaths |> List.map snd
 
-    // parse each file independently, lower with module path
     let mutable allLowered : Lowered.TopLevelDef list = []
     let mutable parseError = false
     for file in files do
         printfn "  %s" file
-        match parseFile file with
-        | Result.Error e -> eprintfn "%s" e; parseError <- true
+        match Compiler.parseFile file with
+        | Result.Error error -> eprintfn "%s" error; parseError <- true
         | Ok (nodes, _source) ->
-            let modulePath = deriveModulePath file
-            let lowered = lowerFileNodes modulePath nodes
+            let modulePath = Compiler.deriveModulePath file
+            let lowered = Compiler.lowerFileNodes modulePath nodes
             allLowered <- allLowered @ lowered
 
     if parseError then 1
@@ -320,11 +216,11 @@ let runBuild (files: string list) (projectName: string) (targetTriple: string op
         if isLibrary then
             let objPath = Path.Combine(buildDir, projectName + ".o")
             match invokeBackend fsoPath objPath targetTriple [] [] with
-            | Result.Error e -> eprintfn "%s" e; 1
+            | Result.Error error -> eprintfn "%s" error; 1
             | Ok _ ->
                 let archivePath = Path.Combine(binDir, $"lib{projectName}.a")
                 match invokeAr [objPath] archivePath with
-                | Result.Error e -> eprintfn "%s" e; 1
+                | Result.Error error -> eprintfn "%s" error; 1
                 | Ok _ ->
                     let manifestPath = Path.Combine(binDir, $"lib{projectName}.fsi")
                     let exportedFns =
@@ -339,7 +235,7 @@ let runBuild (files: string list) (projectName: string) (targetTriple: string op
             let exePath = Path.Combine(binDir, projectName)
             let linkLibs = depPaths |> List.map fst
             match invokeBackend fsoPath exePath targetTriple linkLibs manifestPaths with
-            | Result.Error e -> eprintfn "%s" e; 1
+            | Result.Error error -> eprintfn "%s" error; 1
             | Ok path -> printfn "compiled %s" path; 0
 
 // -- New command --
@@ -388,17 +284,17 @@ let rec runBuildSingleProject (projectDir: string) =
     Directory.SetCurrentDirectory(projectDir)
     let result =
         match ProjectConfig.load "furst.yaml" with
-        | Result.Error e -> eprintfn "%s" e; 2
+        | Result.Error error -> eprintfn "%s" error; 2
         | Ok project ->
-            let missing = project.Sources |> List.filter (fun s -> not (File.Exists s))
+            let missing = project.Sources |> List.filter (fun source -> not (File.Exists source))
             if not missing.IsEmpty then
-                for m in missing do eprintfn "source file not found: %s" m
+                for missingFile in missing do eprintfn "source file not found: %s" missingFile
                 2
             else
                 let triple =
                     match project.Targets with
                     | [] -> None
-                    | t :: _ -> Some (ProjectConfig.buildTriple t)
+                    | target :: _ -> Some (ProjectConfig.buildTriple target)
                 let projType =
                     match project.Type with
                     | ProjectConfig.Library -> Some "library"
@@ -411,7 +307,7 @@ let rec runBuildSingleProject (projectDir: string) =
                     | ProjectConfig.LocalDependency depPath ->
                         let depYaml = Path.Combine(depPath, "furst.yaml")
                         match ProjectConfig.load depYaml with
-                        | Result.Error e -> eprintfn "dependency error: %s" e; depFailed <- true
+                        | Result.Error error -> eprintfn "dependency error: %s" error; depFailed <- true
                         | Ok depProject ->
                             printfn "building dependency %s..." depProject.Name
                             let depResult = runBuildSingleProject depPath
@@ -433,7 +329,7 @@ let rec runBuildSingleProject (projectDir: string) =
 
 and runBuildWorkspace () =
     match ProjectConfig.loadWorkspace "furst-workspace.yaml" with
-    | Result.Error e -> eprintfn "%s" e; 2
+    | Result.Error error -> eprintfn "%s" error; 2
     | Ok workspace ->
         let mutable failed = false
         for projectPath in workspace.Projects do
@@ -456,9 +352,9 @@ and runBuildProject () =
 
 let private executeProgram (exePath: string) (args: string list) =
     let argStr = args |> String.concat " "
-    let psi = System.Diagnostics.ProcessStartInfo(exePath, argStr)
+    let psi = Diagnostics.ProcessStartInfo(exePath, argStr)
     psi.UseShellExecute <- false
-    let proc = System.Diagnostics.Process.Start(psi)
+    let proc = Diagnostics.Process.Start(psi)
     proc.WaitForExit()
     proc.ExitCode
 
@@ -478,15 +374,23 @@ let runRunProject (args: string list) =
     if buildResult <> 0 then buildResult
     else
         match ProjectConfig.load "furst.yaml" with
-        | Result.Error e -> eprintfn "%s" e; 2
+        | Result.Error error -> eprintfn "%s" error; 2
         | Ok project ->
             let exePath = Path.Combine("bin", project.Name)
             executeProgram exePath args
 
 // -- Entry point --
 
+let private getVersion () =
+    let assembly = System.Reflection.Assembly.GetEntryAssembly()
+    let attrs = assembly.GetCustomAttributes(typeof<System.Reflection.AssemblyInformationalVersionAttribute>, false)
+    match attrs |> Array.tryHead with
+    | Some attr -> (attr :?> System.Reflection.AssemblyInformationalVersionAttribute).InformationalVersion
+    | None -> "unknown"
+
 let run (argv: string array) =
     match parseArgs argv with
+    | Version -> printfn "furst %s" (getVersion ()); 0
     | Help -> printfn "%s" helpText; 0
     | Error msg -> eprintfn "%s" msg; eprintfn "Run 'furst help' for usage."; 2
     | New opts -> runNew opts

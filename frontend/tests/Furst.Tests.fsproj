@@ -9,18 +9,19 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <Compile Include="LlvmirTests\GeneratorTests.fs" />
-    <Compile Include="ParserHelper.fs" />
-    <Compile Include="CommonParsersTests.fs" />
-    <Compile Include="Tests.fs" />
-    <Compile Include="StructParserTests.fs" />
-    <Compile Include="VariableTests.fs" />
-    <Compile Include="FunctionTests.fs" />
-    <Compile Include="AstWalkerTests.fs" />
-    <Compile Include="AstBuilderTests.fs" />
-    <Compile Include="DebugAstTest.fs" />
-    <Compile Include="LoweringIntegrationTests.fs" />
-    <Compile Include="GenerateFixtures.fs" />
+    <Compile Include="Parse/ParserHelper.fs" />
+    <Compile Include="Parse/ParsersTests.fs" />
+    <Compile Include="Parse/StructParserTests.fs" />
+    <Compile Include="Check/SymbolTableTests.fs" />
+    <Compile Include="Core/AstWalkerTests.fs" />
+    <Compile Include="Parse/Ast/LetBindingTests.fs" />
+    <Compile Include="Parse/Ast/FunctionDefinitionTests.fs" />
+    <Compile Include="Parse/Ast/ExpressionTests.fs" />
+    <Compile Include="Parse/Ast/ModuleSystemTests.fs" />
+    <Compile Include="Parse/DebugAstTest.fs" />
+    <Compile Include="Lower/LambdaLiftingTests.fs" />
+    <Compile Include="Emit/RoundtripTests.fs" />
+    <Compile Include="Emit/GenerateFixtures.fs" />
     <Compile Include="Program.fs" />
   </ItemGroup>
 
@@ -38,8 +39,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\src\main\Furst.Frontend.fsproj" />
-    <ProjectReference Include="..\src\llvmir\Furst.Llvmir.fsproj" />
+    <ProjectReference Include="..\src\compiler\Furst.Compiler.fsproj" />
   </ItemGroup>
 
 </Project>

@@ -75,12 +75,15 @@ struct FunctionDef {
     std::vector<Parameter> parameters;
     std::vector<Expression> body;
     SourceLocation location;
+    std::vector<std::string> module_path;
+    bool is_private = false;
 };
 
 struct StructDef {
     std::string name;
     std::vector<Parameter> fields;
     SourceLocation location;
+    std::vector<std::string> module_path;
 };
 
 using TopLevel = std::variant<FunctionDef, StructDef>;

@@ -110,32 +110,32 @@
               publish() {
                 local root
                 root="$(git rev-parse --show-toplevel)"
+                rm -rf "''${root}/build"
                 mkdir -p "''${root}/build"
 
-                echo "==> Building backend..."
+                echo "==> Building backend (furstc)..."
                 cd "''${root}/backend"
                 cmake -B build -G Ninja && cmake --build build
+                cp build/furstc "''${root}/build/furstc"
                 cd "''${root}"
 
-                echo "==> Publishing frontend..."
-                dotnet publish "''${root}/frontend/src/main/Furst.Frontend.fsproj" \
-                  -c Release -o "''${root}/build/furstc" --nologo -v quiet
+                echo "==> Publishing furstp..."
+                dotnet publish "''${root}/frontend/src/furstp/Furst.Furstp.fsproj" \
+                  -c Release -r linux-x64 -o "''${root}/build" \
+                  -p:DebugType=none -p:DebugSymbols=false --nologo -v quiet
 
-                # Create wrapper script
-                cat > "''${root}/build/furstc" << 'WRAPPER'
-              #!/usr/bin/env bash
-              SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-              export PATH="''${SCRIPT_DIR}:''${PATH}"
-              dotnet "''${SCRIPT_DIR}/furstc/Furst.Frontend.dll" "$@"
-              WRAPPER
-                chmod +x "''${root}/build/furstc"
+                echo "==> Publishing furst..."
+                dotnet publish "''${root}/frontend/src/furst/Furst.Cli.fsproj" \
+                  -c Release -r linux-x64 -o "''${root}/build" \
+                  -p:DebugType=none -p:DebugSymbols=false --nologo -v quiet
 
                 echo ""
                 echo "published to build/:"
-                echo "  build/furstc           — furst compiler"
-                echo "  build/furstc-backend   — backend (called by furstc)"
+                echo "  build/furst    — furst CLI (build, run, new, ...)"
+                echo "  build/furstp   — frontend compiler (.fu -> .fso)"
+                echo "  build/furstc   — backend compiler (.fso -> native)"
                 echo ""
-                echo "usage: ./build/furstc build examples/hello.fu"
+                echo "usage: ./build/furst build"
               }
 
               echo ""

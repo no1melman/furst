@@ -1,0 +1,8 @@
+<Project>
+  <PropertyGroup>
+    <FurstVersionFile>$([System.IO.Path]::Combine($(MSBuildThisFileDirectory), `..`, `VERSION`))</FurstVersionFile>
+    <FurstVersion>$([System.IO.File]::ReadAllText($(FurstVersionFile)).Trim())</FurstVersion>
+    <Version>$(FurstVersion)</Version>
+    <InformationalVersion>$(FurstVersion)</InformationalVersion>
+  </PropertyGroup>
+</Project>

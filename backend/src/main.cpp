@@ -4,7 +4,7 @@
 #include <string>
 
 static void print_usage() {
-    std::cerr << "usage: furstc-backend <input.fso> <output> [options]\n";
+    std::cerr << "usage: furstc <input.fso> <output> [options]\n";
     std::cerr << "\n";
     std::cerr << "output format determined by extension:\n";
     std::cerr << "  .ll    LLVM IR text\n";
@@ -18,6 +18,11 @@ static void print_usage() {
 }
 
 int main(int argc, char** argv) {
+    if (argc >= 2 && std::string(argv[1]) == "--version") {
+        std::cout << "furstc " << FURST_VERSION << "\n";
+        return 0;
+    }
+
     if (argc < 3) {
         print_usage();
         return 1;
