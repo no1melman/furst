@@ -90,6 +90,20 @@ let rec private mapExpr (expr: Expression) : Furst.Expression =
             protoExpr.ResolvedType <- mapType String
         protoExpr.Literal <- protoLiteral
 
+    | NegateExpression inner ->
+        // Emit as: 0 - inner
+        let protoOperation = Furst.Operation()
+        let zeroLit = Furst.LiteralValue()
+        zeroLit.IntLiteral <- 0
+        let zeroExpr = Furst.Expression()
+        zeroExpr.Literal <- zeroLit
+        zeroExpr.ResolvedType <- mapType I32
+        protoOperation.Left <- zeroExpr
+        protoOperation.Op <- Furst.Operator.OpSubtract
+        protoOperation.Right <- mapExpr inner
+        protoExpr.Operation <- protoOperation
+        protoExpr.ResolvedType <- mapType Inferred
+
     | FunctionDefinitionExpression _ ->
         protoExpr.Identifier <- "<error:unlowered-function>"
         protoExpr.ResolvedType <- mapType Inferred

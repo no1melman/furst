@@ -3,7 +3,8 @@ module ModuleSystemTests
 open Xunit
 open Types
 open Ast
-open AstBuilder
+open RowParser
+open TokenCombinators
 open Lexer
 
 [<Fact>]
@@ -12,12 +13,12 @@ let ``Header-style mod has empty body`` () =
 mod Foo
 """
 
-    match createAST "test" source with
+    match tokenise "test" source with
     | Error error -> Assert.Fail($"Parse failed: {error}")
     | Ok rows ->
-        match rowToExpression rows.Head with
+        match parseRow rows.Head emptyState with
         | Error error -> Assert.Fail($"AST build failed: {error.Message}")
-        | Ok exprNode ->
+        | Ok (exprNode, _) ->
             match exprNode.Expr with
             | ModuleDeclaration (parts, body) ->
                 Assert.Equal<string list>(["Foo"], parts)
@@ -30,12 +31,12 @@ let ``Open declaration should parse to OpenDeclaration`` () =
 open Foo.Bar
 """
 
-    match createAST "test" source with
+    match tokenise "test" source with
     | Error error -> Assert.Fail($"Parse failed: {error}")
     | Ok rows ->
-        match rowToExpression rows.Head with
+        match parseRow rows.Head emptyState with
         | Error error -> Assert.Fail($"AST build failed: {error.Message}")
-        | Ok exprNode ->
+        | Ok (exprNode, _) ->
             match exprNode.Expr with
             | OpenDeclaration parts ->
                 Assert.Equal<string list>(["Foo"; "Bar"], parts)
@@ -48,12 +49,12 @@ mod Foo
   let x = 1
 """
 
-    match createAST "test" source with
+    match tokenise "test" source with
     | Error error -> Assert.Fail($"Parse failed: {error}")
     | Ok rows ->
-        match rowToExpression rows.Head with
+        match parseRow rows.Head emptyState with
         | Error error -> Assert.Fail($"AST build failed: {error.Message}")
-        | Ok exprNode ->
+        | Ok (exprNode, _) ->
             match exprNode.Expr with
             | ModuleDeclaration (parts, body) ->
                 Assert.Equal<string list>(["Foo"], parts)
@@ -70,12 +71,12 @@ mod Api.Types
   let y = 2
 """
 
-    match createAST "test" source with
+    match tokenise "test" source with
     | Error error -> Assert.Fail($"Parse failed: {error}")
     | Ok rows ->
-        match rowToExpression rows.Head with
+        match parseRow rows.Head emptyState with
         | Error error -> Assert.Fail($"AST build failed: {error.Message}")
-        | Ok exprNode ->
+        | Ok (exprNode, _) ->
             match exprNode.Expr with
             | ModuleDeclaration (parts, body) ->
                 Assert.Equal<string list>(["Api"; "Types"], parts)
@@ -90,12 +91,12 @@ mod Math
     x + y
 """
 
-    match createAST "test" source with
+    match tokenise "test" source with
     | Error error -> Assert.Fail($"Parse failed: {error}")
     | Ok rows ->
-        match rowToExpression rows.Head with
+        match parseRow rows.Head emptyState with
         | Error error -> Assert.Fail($"AST build failed: {error.Message}")
-        | Ok exprNode ->
+        | Ok (exprNode, _) ->
             match exprNode.Expr with
             | ModuleDeclaration (parts, body) ->
                 Assert.Equal<string list>(["Math"], parts)
@@ -114,11 +115,11 @@ mod Bar
   let y = 2
 """
 
-    match createAST "test" source with
+    match tokenise "test" source with
     | Error error -> Assert.Fail($"Parse failed: {error}")
     | Ok rows ->
         Assert.Equal(2, rows.Length)
-        let results = rows |> List.map rowToExpression
+        let results = rows |> List.map (fun r -> parseRow r emptyState |> Result.map fst)
         for r in results do
             match r with
             | Error e -> Assert.Fail($"AST build failed: {e.Message}")
@@ -132,12 +133,12 @@ let ``Lib declaration parses single name`` () =
     let source = """
 lib Furst
 """
-    match createAST "test" source with
+    match tokenise "test" source with
     | Error error -> Assert.Fail($"Parse failed: {error}")
     | Ok rows ->
-        match rowToExpression rows.Head with
+        match parseRow rows.Head emptyState with
         | Error error -> Assert.Fail($"AST build failed: {error.Message}")
-        | Ok exprNode ->
+        | Ok (exprNode, _) ->
             match exprNode.Expr with
             | LibDeclaration parts ->
                 Assert.Equal<string list>(["Furst"], parts)
@@ -148,12 +149,12 @@ let ``Lib declaration parses dotted name`` () =
     let source = """
 lib Furst.Collections
 """
-    match createAST "test" source with
+    match tokenise "test" source with
     | Error error -> Assert.Fail($"Parse failed: {error}")
     | Ok rows ->
-        match rowToExpression rows.Head with
+        match parseRow rows.Head emptyState with
         | Error error -> Assert.Fail($"AST build failed: {error.Message}")
-        | Ok exprNode ->
+        | Ok (exprNode, _) ->
             match exprNode.Expr with
             | LibDeclaration parts ->
                 Assert.Equal<string list>(["Furst"; "Collections"], parts)

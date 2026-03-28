@@ -6,7 +6,7 @@ open System.Collections.Concurrent
 open System.Threading.Tasks
 open Types
 open Ast
-open AstBuilder
+open TokenCombinators
 
 let readFile (path: string) =
     if File.Exists path then
@@ -55,17 +55,14 @@ let parseFile (filePath: string) : Result<ExpressionNode list * string, string> 
     match readFile filePath with
     | Result.Error error -> Result.Error error
     | Ok source ->
-        match Lexer.createAST filePath source with
+        match Lexer.tokenise filePath source with
         | Result.Error error -> Result.Error $"Parse error in {filePath}: {error}"
         | Ok rows ->
-            let results = rows |> List.map rowToExpression
-            let errors = results |> List.choose (function Result.Error error -> Some error | _ -> None)
-            match errors with
-            | error :: _ ->
+            match RowParser.parseFile rows emptyState with
+            | Result.Error error ->
                 formatError source error
                 Result.Error $"AST error in {filePath}: {error.Message}"
-            | [] ->
-                let nodes = results |> List.choose (function Ok node -> Some node | _ -> None)
+            | Ok (nodes, _state) ->
                 Ok (nodes, source)
 
 let lowerFileNodes (baseModulePath: ModulePath) (nodes: ExpressionNode list) : Lowered.TopLevelDef list =

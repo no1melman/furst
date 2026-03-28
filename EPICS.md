@@ -15,6 +15,7 @@
 | 0006 | Allocation strategy | Proposed | 8.1 | 0% |
 | 0007 | String/collection types | Proposed | 10.1 | 0% |
 | 0008 | Module system | Accepted | 5b.1–5b.16 | 94% |
+| 0009 | Monadic AST parsing | Accepted | 5c.1–5c.10 | 100% |
 
 ## Epic 1: Build Infrastructure
 
@@ -94,6 +95,23 @@ Deferred:
 - `extend mod` for cross-package module augmentation
 - Nested mods via `=` syntax
 - `internal` visibility (package-private)
+
+## Epic 5c: Monadic AST Parser
+
+> ADR: [ADR-0009](docs/adr/ADR-0009-monadic-ast-parsing.md) | Discussion: [monadic-ast-parsing](docs/discussions/monadic-ast-parsing.md)
+>
+> Replaces `AstBuilder.fs` with composable FParsec-style combinators over token streams. Preserves two-phase architecture (lex → Row trees → AST), adds operator precedence, threads symbol table through parse state.
+
+- [x] 5c.1 `TokenCombinators.fs` — core combinator library: `ParseState`, `TParser<'a>`, operators (`>>=`, `|>>`, `>>.`, `.>>`, `.>>.`, `<|>`), helpers (`preturn`, `pfail`, `optional`, `many`, `many1`, `choice`, `chainl1`), primitives (`expect`, `expectName`, `expectNumber`, `expectType`, `peek`), state combinators (`registerSymbol`, `registerType`)
+- [x] 5c.2 `ExpressionParser.fs` — precedence-based expression parsing: atom → application → unary → multiply → add, with `NegateExpression` support
+- [x] 5c.3 `StatementParser.fs` — typed/untyped params, let bindings, lib/open declarations, struct field/body parsers
+- [x] 5c.4 `RowParser.fs` — row-level dispatch, let/func detection, function definition, mod/mod-body, struct chains, body recursion, file entry point
+- [x] 5c.5 `NegateExpression` AST variant — added to Expression union, handled in TypeInference, LambdaLifting, FsoWriter
+- [x] 5c.6 Wire `Compiler.fs` — replace `AstBuilder.rowToExpression` with `RowParser.parseFile`, update CLI commands
+- [x] 5c.7 Update all tests — switched from `AstBuilder` to `RowParser`/`TokenCombinators` entry points
+- [x] 5c.8 Delete `AstBuilder.fs` — removed from fsproj, file deleted, dead code cleaned from `Ast.fs`
+- [x] 5c.9 Folder restructure — `Tokenise/` (Parsers, StructParser, Lexer) and `Parse/` (combinators, parsers) as sibling dirs
+- [x] 5c.10 Naming cleanup — `createAST` → `tokenise`, `rowReader` → `printRow`, `fakeTokenListOption` → `alwaysSome`, `isIndentifierChar` → `isIdentifierChar`
 
 ## Epic 6: Type System & Operators as Functions
 

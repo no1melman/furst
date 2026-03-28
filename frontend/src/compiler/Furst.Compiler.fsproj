@@ -7,10 +7,13 @@
   <ItemGroup>
     <Compile Include="Core/Types.fs" />
     <Compile Include="Core/Ast.fs" />
-    <Compile Include="Parse/Parsers.fs" />
-    <Compile Include="Parse/StructParser.fs" />
-    <Compile Include="Parse/Lexer.fs" />
-    <Compile Include="Parse/AstBuilder.fs" />
+    <Compile Include="Tokenise/Parsers.fs" />
+    <Compile Include="Tokenise/StructParser.fs" />
+    <Compile Include="Tokenise/Lexer.fs" />
+    <Compile Include="Parse/TokenCombinators.fs" />
+    <Compile Include="Parse/ExpressionParser.fs" />
+    <Compile Include="Parse/StatementParser.fs" />
+    <Compile Include="Parse/RowParser.fs" />
     <Compile Include="Check/SymbolTable.fs" />
     <Compile Include="Check/TypeInference.fs" />
     <Compile Include="Lower/Lowered.fs" />

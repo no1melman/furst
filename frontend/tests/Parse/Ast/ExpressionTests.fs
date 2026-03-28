@@ -3,19 +3,20 @@ module ExpressionTests
 open Xunit
 open Types
 open Ast
-open AstBuilder
+open RowParser
+open TokenCombinators
 open Lexer
 
 [<Fact>]
 let ``Subtract operator should parse to AST`` () =
     let source = "let x = a - b"
 
-    match createAST "test" source with
+    match tokenise "test" source with
     | Error e -> Assert.Fail($"Parse failed: {e}")
     | Ok rows ->
-        match rowToExpression rows.Head with
+        match parseRow rows.Head emptyState with
         | Error e -> Assert.Fail($"AST build failed: {e.Message}")
-        | Ok exprNode ->
+        | Ok (exprNode, _) ->
             match exprNode.Expr with
             | LetBindingExpression binding ->
                 match binding.Value with
@@ -34,12 +35,12 @@ let ``Subtract operator should parse to AST`` () =
 let ``Multiply operator should parse to AST`` () =
     let source = "let x = a * b"
 
-    match createAST "test" source with
+    match tokenise "test" source with
     | Error e -> Assert.Fail($"Parse failed: {e}")
     | Ok rows ->
-        match rowToExpression rows.Head with
+        match parseRow rows.Head emptyState with
         | Error e -> Assert.Fail($"AST build failed: {e.Message}")
-        | Ok exprNode ->
+        | Ok (exprNode, _) ->
             match exprNode.Expr with
             | LetBindingExpression binding ->
                 match binding.Value with
@@ -53,12 +54,12 @@ let ``Chained binary ops should be left-associative`` () =
     // a + b + c should parse as (a + b) + c
     let source = "let x = a + b + c"
 
-    match createAST "test" source with
+    match tokenise "test" source with
     | Error e -> Assert.Fail($"Parse failed: {e}")
     | Ok rows ->
-        match rowToExpression rows.Head with
+        match parseRow rows.Head emptyState with
         | Error e -> Assert.Fail($"AST build failed: {e.Message}")
-        | Ok exprNode ->
+        | Ok (exprNode, _) ->
             match exprNode.Expr with
             | LetBindingExpression binding ->
                 match binding.Value with
@@ -84,12 +85,12 @@ let ``Chained binary ops should be left-associative`` () =
 let ``ExpressionNode should have SourceLocation`` () =
     let source = "let x = 5"
 
-    match createAST "test" source with
+    match tokenise "test" source with
     | Error e -> Assert.Fail($"Parse failed: {e}")
     | Ok rows ->
-        match rowToExpression rows.Head with
+        match parseRow rows.Head emptyState with
         | Error e -> Assert.Fail($"AST build failed: {e.Message}")
-        | Ok exprNode ->
+        | Ok (exprNode, _) ->
             // Verify location exists
             let (Line startLine) = exprNode.Location.StartLine
             let (Column startCol) = exprNode.Location.StartCol
@@ -100,12 +101,12 @@ let ``ExpressionNode should have SourceLocation`` () =
 let ``Standalone function call should parse to AST`` () =
     let source = "f a b"
 
-    match createAST "test" source with
+    match tokenise "test" source with
     | Error e -> Assert.Fail($"Parse failed: {e}")
     | Ok rows ->
-        match rowToExpression rows.Head with
+        match parseRow rows.Head emptyState with
         | Error e -> Assert.Fail($"AST build failed: {e.Message}")
-        | Ok exprNode ->
+        | Ok (exprNode, _) ->
             match exprNode.Expr with
             | FunctionCallExpression call ->
                 Assert.Equal("f", call.FunctionName)
@@ -122,12 +123,12 @@ let ``Standalone function call should parse to AST`` () =
 let ``Function call with parenthesized expression argument`` () =
     let source = "f a (2 + 3)"
 
-    match createAST "test" source with
+    match tokenise "test" source with
     | Error e -> Assert.Fail($"Parse failed: {e}")
     | Ok rows ->
-        match rowToExpression rows.Head with
+        match parseRow rows.Head emptyState with
         | Error e -> Assert.Fail($"AST build failed: {e.Message}")
-        | Ok exprNode ->
+        | Ok (exprNode, _) ->
             match exprNode.Expr with
             | FunctionCallExpression call ->
                 Assert.Equal("f", call.FunctionName)
@@ -154,12 +155,12 @@ struct Foo {
 }
 """
 
-    match createAST "test" source with
+    match tokenise "test" source with
     | Error e -> Assert.Fail($"Parse failed: {e}")
     | Ok rows ->
-        match rowToExpression rows.Head with
+        match parseRow rows.Head emptyState with
         | Error e -> Assert.Fail($"AST build failed: {e.Message}")
-        | Ok exprNode ->
+        | Ok (exprNode, _) ->
             match exprNode.Expr with
             | StructExpression s ->
                 Assert.Equal("Foo", s.Name)
@@ -174,12 +175,12 @@ struct Point {
 }
 """
 
-    match createAST "test" source with
+    match tokenise "test" source with
     | Error e -> Assert.Fail($"Parse failed: {e}")
     | Ok rows ->
-        match rowToExpression rows.Head with
+        match parseRow rows.Head emptyState with
         | Error e -> Assert.Fail($"AST build failed: {e.Message}")
-        | Ok exprNode ->
+        | Ok (exprNode, _) ->
             match exprNode.Expr with
             | StructExpression s ->
                 Assert.Equal("Point", s.Name)
@@ -199,12 +200,12 @@ struct Point {
 }
 """
 
-    match createAST "test" source with
+    match tokenise "test" source with
     | Error e -> Assert.Fail($"Parse failed: {e}")
     | Ok rows ->
-        match rowToExpression rows.Head with
+        match parseRow rows.Head emptyState with
         | Error e -> Assert.Fail($"AST build failed: {e.Message}")
-        | Ok exprNode ->
+        | Ok (exprNode, _) ->
             match exprNode.Expr with
             | StructExpression s ->
                 Assert.Equal("Point", s.Name)
@@ -220,12 +221,12 @@ struct Point {
 let ``Qualified function call should parse`` () =
     let source = "Math.add 1 2"
 
-    match createAST "test" source with
+    match tokenise "test" source with
     | Error error -> Assert.Fail($"Parse failed: {error}")
     | Ok rows ->
-        match rowToExpression rows.Head with
+        match parseRow rows.Head emptyState with
         | Error error -> Assert.Fail($"AST build failed: {error.Message}")
-        | Ok exprNode ->
+        | Ok (exprNode, _) ->
             match exprNode.Expr with
             | FunctionCallExpression call ->
                 Assert.Equal("Math.add", call.FunctionName)

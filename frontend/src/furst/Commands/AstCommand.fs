@@ -2,7 +2,8 @@ module Commands.Ast
 
 open System
 open Ast
-open AstBuilder
+open RowParser
+open TokenCombinators
 open Spectre.Console
 
 let rec printExpr (indent: int) (expr: Expression) =
@@ -46,6 +47,9 @@ let rec printExpr (indent: int) (expr: Expression) =
             printExpr (indent + 2) bodyExpr
     | LibDeclaration parts ->
         printfn "%slib %s" pad (String.Join(".", parts))
+    | NegateExpression inner ->
+        printfn "%sNegate" pad
+        printExpr (indent + 2) inner
     | OpenDeclaration parts ->
         printfn "%sopen %s" pad (String.Join(".", parts))
 
@@ -53,15 +57,14 @@ let run (file: string) =
     match Compiler.readFile file with
     | Result.Error error -> AnsiConsole.MarkupLine $"[red]{Markup.Escape error}[/]"; 2
     | Ok source ->
-        match Lexer.createAST file source with
+        match Lexer.tokenise file source with
         | Result.Error error -> AnsiConsole.MarkupLine $"[red]Parse error: {Markup.Escape error}[/]"; 1
         | Ok rows ->
-            let results = rows |> List.map rowToExpression
-            let mutable hasError = false
-            for result in results do
-                match result with
-                | Ok node -> printExpr 0 node.Expr
-                | Result.Error error ->
-                    Compiler.formatError source error
-                    hasError <- true
-            if hasError then 1 else 0
+            match RowParser.parseFile rows emptyState with
+            | Error error ->
+                Compiler.formatError source error
+                1
+            | Ok (nodes, _) ->
+                for node in nodes do
+                    printExpr 0 node.Expr
+                0

@@ -2,7 +2,8 @@ module ModuleSystemErrorTests
 
 open Xunit
 open Ast
-open AstBuilder
+open RowParser
+open TokenCombinators
 open Lexer
 
 [<Fact>]
@@ -12,10 +13,10 @@ mod Foo
   mod Bar
 """
 
-    match createAST "test" source with
+    match tokenise "test" source with
     | Error error -> Assert.Fail($"Parse failed: {error}")
     | Ok rows ->
-        match rowToExpression rows.Head with
+        match parseRow rows.Head emptyState with
         | Error error ->
             Assert.Contains("Nested mod declarations are not allowed", error.Message)
         | Ok _ ->
@@ -28,10 +29,10 @@ mod Foo
   lib Bar
 """
 
-    match createAST "test" source with
+    match tokenise "test" source with
     | Error error -> Assert.Fail($"Parse failed: {error}")
     | Ok rows ->
-        match rowToExpression rows.Head with
+        match parseRow rows.Head emptyState with
         | Error error ->
             Assert.Contains("lib declarations are not allowed inside mod", error.Message)
         | Ok _ ->

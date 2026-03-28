@@ -116,15 +116,15 @@ let (<!>) (p: Parser<_,_>) _label : Parser<_,_> = p
 let pPotentialExpr =
   (attempt letBlockParser <!> "let block") <|> (tokenParser |>> List.singleton <!> "Token parser")
 
-let fakeTokenListOption _ : TokenWithMetadata list option =
+let alwaysSome _ : TokenWithMetadata list option =
   Some []
 
 let pOptionExpr : Parser<TokenWithMetadata list option> =
   pMatch [
-    (structWordTokenParser |>> fakeTokenListOption, (attempt structParser |>> Some))
-    (noneOf (seq { '\n' }) |>> fakeTokenListOption, (many1 (pPotentialExpr .>> pManyWhitespace) |>> List.collect id) |>> Some)
-    (anyOf (seq { '\n' }) |>> fakeTokenListOption, preturn None)
-    (eof |>> fakeTokenListOption, preturn None)
+    (structWordTokenParser |>> alwaysSome, (attempt structParser |>> Some))
+    (noneOf (seq { '\n' }) |>> alwaysSome, (many1 (pPotentialExpr .>> pManyWhitespace) |>> List.collect id) |>> Some)
+    (anyOf (seq { '\n' }) |>> alwaysSome, preturn None)
+    (eof |>> alwaysSome, preturn None)
   ] <!> "Match Block"
 
 let pLineExpr =
@@ -159,7 +159,7 @@ let nestRows (items: Row list) =
 
     sortViaIndent 0 items
 
-let createAST docName code =
+let tokenise docName code =
   runParserOnString pLineExpr BlockScopeParserState.Default docName code
   |> function
      | Success (lines, _, _) ->
@@ -171,7 +171,7 @@ let createAST docName code =
          Result.Error e
 
 
-let rec rowReader (row: Row) : unit =
+let rec printRow (row: Row) : unit =
   let sb = StringBuilder()
   let append (s: string) = sb.Append(s) |> ignore
 
@@ -211,4 +211,4 @@ let rec rowReader (row: Row) : unit =
 
   printfn "%s%s" (System.String(' ', row.Indent)) (sb.ToString())
 
-  row.Body |> List.iter rowReader
+  row.Body |> List.iter printRow

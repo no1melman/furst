@@ -16,8 +16,8 @@ type BlockScopeParserState =
   static member Default = { Depth = 0; Capture = NoStatus }
 type Parser<'t> = Parser<'t, BlockScopeParserState>
 
-let isIndentifierChar c = c <> ' ' && (isLetter c || isDigit c)
-let wordParser = many1Satisfy2 isIndentifierChar isIndentifierChar
+let isIdentifierChar c = c <> ' ' && (isLetter c || isDigit c)
+let wordParser = many1Satisfy2 isIdentifierChar isIdentifierChar
 
 // Helper to capture position metadata for tokens
 let withPosition (p: Parser<Tokens, _>) : Parser<TokenWithMetadata, _> =

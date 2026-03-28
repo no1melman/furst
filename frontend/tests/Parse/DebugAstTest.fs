@@ -10,7 +10,7 @@ let add a b =
   a + b
 """
 
-    match createAST "test" source with
+    match tokenise "test" source with
     | Error e -> Assert.Fail($"Parse failed: {e}")
     | Ok rows ->
         // Print structure
