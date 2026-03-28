@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>net8.0</TargetFramework>
+    <TargetFramework>net10.0</TargetFramework>
 
     <IsPackable>false</IsPackable>
     <GenerateProgramFile>false</GenerateProgramFile>
@@ -9,15 +9,28 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <Compile Include="LlvmirTests\GeneratorTests.fs" />
-    <Compile Include="ParserHelper.fs" />
-    <Compile Include="CommonParsersTests.fs" />
-    <Compile Include="Tests.fs" />
-    <Compile Include="StructParserTests.fs" />
-    <Compile Include="VariableTests.fs" />
-    <Compile Include="FunctionTests.fs" />
+    <Compile Include="Parse/ParserHelper.fs" />
+    <Compile Include="Parse/ParsersTests.fs" />
+    <Compile Include="Parse/StructParserTests.fs" />
+    <Compile Include="Check/SymbolTableTests.fs" />
+    <Compile Include="Compile/CompileHelper.fs" />
+    <Compile Include="Compile/ModuleScopingTests.fs" />
+    <Compile Include="Compile/ModuleScopingErrorTests.fs" />
+    <Compile Include="Compile/VisibilityTests.fs" />
+    <Compile Include="Compile/VisibilityErrorTests.fs" />
+    <Compile Include="Compile/EntryPointTests.fs" />
+    <Compile Include="Compile/DependencyTests.fs" />
+    <Compile Include="Core/AstWalkerTests.fs" />
+    <Compile Include="Parse/Ast/LetBindingTests.fs" />
+    <Compile Include="Parse/Ast/FunctionDefinitionTests.fs" />
+    <Compile Include="Parse/Ast/ExpressionTests.fs" />
+    <Compile Include="Parse/Ast/ModuleSystemTests.fs" />
+    <Compile Include="Parse/Ast/ModuleSystemErrorTests.fs" />
+    <Compile Include="Parse/DebugAstTest.fs" />
+    <Compile Include="Lower/LambdaLiftingTests.fs" />
+    <Compile Include="Emit/RoundtripTests.fs" />
+    <Compile Include="Emit/GenerateFixtures.fs" />
     <Compile Include="Program.fs" />
-    <Compile Include="AstWalkerTests.fs" />
   </ItemGroup>
 
   <ItemGroup>
@@ -34,8 +47,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\src\main\Furst.Frontend.fsproj" />
-    <ProjectReference Include="..\src\llvmir\Furst.Llvmir.fsproj" />
+    <ProjectReference Include="..\src\compiler\Furst.Compiler.fsproj" />
   </ItemGroup>
 
 </Project>

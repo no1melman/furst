@@ -1,0 +1,9 @@
+let compute a =
+  let step1 x =
+    x + 1
+  let step2 y =
+    y + 2
+  step1 a
+
+let main =
+  compute 10
