@@ -156,11 +156,15 @@ let writeFso (outputPath: string) (sourceFile: string) (defs: TopLevelDef list) 
     furstModule.SourceFile <- sourceFile
 
     for def in defs do
-        let topLevel = Furst.TopLevel()
         match def with
-        | TopFunction functionDef -> topLevel.Function <- mapFunctionDef functionDef
-        | TopStruct structDef -> topLevel.StructDef <- mapStructDef structDef
-        furstModule.Definitions.Add(topLevel)
+        | TopOpen _ -> () // opens are compile-time only, not emitted
+        | _ ->
+            let topLevel = Furst.TopLevel()
+            match def with
+            | TopFunction functionDef -> topLevel.Function <- mapFunctionDef functionDef
+            | TopStruct structDef -> topLevel.StructDef <- mapStructDef structDef
+            | TopOpen _ -> ()
+            furstModule.Definitions.Add(topLevel)
 
     use fileStream = File.Create(outputPath)
     fileStream.Write(fsoMagic, 0, 4)

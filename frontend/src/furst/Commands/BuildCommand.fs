@@ -48,7 +48,7 @@ let run (files: string list) (projectName: string) (targetTriple: string option)
 
     for file in files do printfn "  %s" file
 
-    match Compiler.compileFiles libRoot files with
+    match Compiler.compileFiles libRoot files manifestPaths with
     | Result.Error error -> AnsiConsole.MarkupLine $"[red]{Markup.Escape error}[/]"; 1
     | Ok lowered ->
         let lowered = lowered
@@ -71,7 +71,9 @@ let run (files: string list) (projectName: string) (targetTriple: string option)
                     let exportedFns =
                         lowered |> List.choose (function
                             | Lowered.TopFunction functionDef when functionDef.Visibility = Public ->
-                                Some $"{functionDef.Name} {functionDef.Parameters.Length}"
+                                let (Types.ModulePath parts) = functionDef.ModulePath
+                                let qualifiedName = System.String.Join(".", parts @ [functionDef.Name])
+                                Some $"{qualifiedName} {functionDef.Parameters.Length}"
                             | _ -> None)
                     File.WriteAllLines(manifestPath, exportedFns)
                     AnsiConsole.MarkupLine $"[green]archived {Markup.Escape archivePath} ({exportedFns.Length} exports)[/]"

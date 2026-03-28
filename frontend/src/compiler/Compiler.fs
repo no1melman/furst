@@ -110,7 +110,27 @@ let lowerFileNodes (baseModulePath: ModulePath) (nodes: ExpressionNode list) : L
 
     allLowered
 
-let compileFiles (libRoot: string option) (files: string list) : Result<Lowered.TopLevelDef list, string> =
+/// Load a .fsi manifest and register its symbols in the given table.
+/// Format: "qualified.path paramCount" per line.
+let loadManifest (path: string) (table: SymbolTable.SymbolTable) : Result<SymbolTable.SymbolTable, string> =
+    if not (File.Exists path) then
+        Result.Error $"manifest not found: {path}"
+    else
+        let lines = File.ReadAllLines(path)
+        lines |> Array.fold (fun tableResult line ->
+            match tableResult with
+            | Result.Error _ -> tableResult
+            | Ok tbl ->
+                let parts = line.Split(' ')
+                if parts.Length < 2 then Ok tbl
+                else
+                    let qualifiedName = parts.[0]
+                    let paramCount = int parts.[1]
+                    let symbolPath = qualifiedName.Split('.') |> Array.toList
+                    SymbolTable.addSymbol symbolPath Visibility.Public paramCount tbl
+        ) (Ok table)
+
+let compileFiles (libRoot: string option) (files: string list) (manifests: string list) : Result<Lowered.TopLevelDef list, string> =
     let indexMap = files |> List.mapi (fun i f -> (f, i)) |> Map.ofList
     let results = ConcurrentDictionary<int, Lowered.TopLevelDef list>()
     let errors = ConcurrentBag<string>()
@@ -130,8 +150,18 @@ let compileFiles (libRoot: string option) (files: string list) : Result<Lowered.
         let ordered =
             [0 .. files.Length - 1]
             |> List.collect (fun i -> results.[i])
-        match Pipeline.checkForwardReferences ordered with
+        // seed symbol table with dependency symbols from manifests
+        let seedResult =
+            manifests |> List.fold (fun acc path ->
+                match acc with
+                | Result.Error _ -> acc
+                | Ok tbl -> loadManifest path tbl
+            ) (Ok SymbolTable.empty)
+        match seedResult with
         | Result.Error error -> Result.Error error
-        | Ok symTable ->
-            let resolved = Pipeline.resolveNames symTable ordered
-            Result.Ok resolved
+        | Ok seedTable ->
+            match Pipeline.checkForwardReferences seedTable ordered with
+            | Result.Error error -> Result.Error error
+            | Ok symTable ->
+                let resolved = Pipeline.resolveNames symTable ordered
+                Result.Ok resolved

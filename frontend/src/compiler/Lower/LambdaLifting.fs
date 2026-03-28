@@ -137,7 +137,9 @@ let liftLambdas (modulePath: ModulePath) (nodes: ExpressionNode list) : TopLevel
                     ModulePath = modulePath
                     Visibility = Visibility.Public
                 } ]
-            | ModuleDeclaration _ | LibDeclaration _ | OpenDeclaration _ ->
+            | OpenDeclaration parts ->
+                [ TopOpen parts ]
+            | ModuleDeclaration _ | LibDeclaration _ ->
                 [] // declarations don't produce lowered defs
             | other ->
                 // top-level expression -> wrap in anonymous

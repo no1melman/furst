@@ -48,7 +48,7 @@ let private applyInferredTypes (typeMap: Map<string, TypeDefinitions list * Type
                     else functionDef.Parameters
                 TopFunction { functionDef with ReturnType = returnType; Parameters = updatedParams }
             | None -> def
-        | TopStruct _ -> def
+        | TopStruct _ | TopOpen _ -> def
     )
 
 /// Full lowering pipeline: Check -> Lower -> Apply types
@@ -73,6 +73,8 @@ let buildSymbolTable (defs: TopLevelDef list) : Result<SymbolTable.SymbolTable, 
                 let (ModulePath parts) = structDef.ModulePath
                 let fullPath = parts @ [structDef.Name]
                 SymbolTable.addSymbol fullPath Visibility.Public 0 table
+            | TopOpen openParts ->
+                Ok (SymbolTable.addOpen openParts table)
     ) (Ok SymbolTable.empty)
 
 /// Collect all referenced identifiers from an expression tree
@@ -89,8 +91,9 @@ let rec private collectRefs (expr: Expression) : Set<string> =
     | _ -> Set.empty
 
 /// Check for forward references: each def's body can only reference symbols declared before it.
+/// Accepts an initial symbol table (e.g. pre-seeded with dependency symbols).
 /// Returns Error with location info on first forward reference found.
-let checkForwardReferences (defs: TopLevelDef list) : Result<SymbolTable.SymbolTable, string> =
+let checkForwardReferences (initialTable: SymbolTable.SymbolTable) (defs: TopLevelDef list) : Result<SymbolTable.SymbolTable, string> =
     defs |> List.fold (fun state def ->
         match state with
         | Result.Error _ -> state
@@ -120,7 +123,9 @@ let checkForwardReferences (defs: TopLevelDef list) : Result<SymbolTable.SymbolT
                 let (ModulePath parts) = structDef.ModulePath
                 let fullPath = parts @ [structDef.Name]
                 SymbolTable.addSymbol fullPath Visibility.Public 0 table
-    ) (Ok SymbolTable.empty)
+            | TopOpen openParts ->
+                Ok (SymbolTable.addOpen openParts table)
+    ) (Ok initialTable)
 
 /// Resolve qualified names in lowered function bodies using symbol table + opens
 let resolveNames (symTable: SymbolTable.SymbolTable) (defs: TopLevelDef list) : TopLevelDef list =

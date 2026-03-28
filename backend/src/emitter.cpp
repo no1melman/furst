@@ -196,16 +196,26 @@ static void declare_externals(llvm::LLVMContext& ctx, llvm::Module& mod,
         }
         auto line = std::string{};
         while (std::getline(file, line)) {
-            // format: "name param_count"
+            // format: "qualified.path param_count"
             auto space = line.find(' ');
             if (space == std::string::npos) {
                 continue;
             }
-            auto name = line.substr(0, space);
+            auto qualified_name = line.substr(0, space);
             auto param_count = std::stoi(line.substr(space + 1));
 
+            // mangle dotted path to __ separators (e.g. Dep.Helpers.greet -> Dep__Helpers__greet)
+            auto mangled = std::string{};
+            for (size_t i = 0; i < qualified_name.size(); ++i) {
+                if (qualified_name[i] == '.') {
+                    mangled += "__";
+                } else {
+                    mangled += qualified_name[i];
+                }
+            }
+
             // skip if already declared
-            if (mod.getFunction(name) != nullptr) {
+            if (mod.getFunction(mangled) != nullptr) {
                 continue;
             }
 
@@ -214,7 +224,7 @@ static void declare_externals(llvm::LLVMContext& ctx, llvm::Module& mod,
                                                         llvm::Type::getInt32Ty(ctx));
             auto* fn_type =
                 llvm::FunctionType::get(llvm::Type::getInt32Ty(ctx), param_types, false);
-            llvm::Function::Create(fn_type, llvm::Function::ExternalLinkage, name, mod);
+            llvm::Function::Create(fn_type, llvm::Function::ExternalLinkage, mangled, mod);
         }
     }
 }

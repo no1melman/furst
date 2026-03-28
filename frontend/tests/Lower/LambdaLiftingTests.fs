@@ -42,7 +42,7 @@ let outer x =
     y
   inner 5
 """
-    let names = defs |> List.map (function TopFunction functionDef -> functionDef.Name | TopStruct structDef -> structDef.Name)
+    let names = defs |> List.map (function TopFunction functionDef -> functionDef.Name | TopStruct structDef -> structDef.Name | TopOpen _ -> "<open>")
     Assert.Contains("outer$inner", names)
     Assert.Contains("outer", names)
 
@@ -82,7 +82,7 @@ let foo a =
 let bar b =
   b
 """
-    let names = defs |> List.map (function TopFunction functionDef -> functionDef.Name | TopStruct structDef -> structDef.Name)
+    let names = defs |> List.map (function TopFunction functionDef -> functionDef.Name | TopStruct structDef -> structDef.Name | TopOpen _ -> "<open>")
     Assert.Contains("foo", names)
     Assert.Contains("bar", names)
 
@@ -106,7 +106,7 @@ let compute a =
     y
   step1 a
 """
-    let names = defs |> List.map (function TopFunction functionDef -> functionDef.Name | TopStruct structDef -> structDef.Name)
+    let names = defs |> List.map (function TopFunction functionDef -> functionDef.Name | TopStruct structDef -> structDef.Name | TopOpen _ -> "<open>")
     Assert.Contains("compute$step1", names)
     Assert.Contains("compute$step2", names)
     Assert.Contains("compute", names)

@@ -28,6 +28,7 @@ type LoweredStructDef = {
 type TopLevelDef =
     | TopFunction of LoweredFunctionDef
     | TopStruct of LoweredStructDef
+    | TopOpen of string list
 
 let funcDetails (functionDef: FunctionDefinition) =
     let (FunctionDefinition details) = functionDef

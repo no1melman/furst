@@ -63,7 +63,7 @@ let ``Forward reference is rejected`` () =
         mkFn "bar" ["Test"] [] [FunctionCallExpression { FunctionName = "foo"; Arguments = [] }]
         mkFn "foo" ["Test"] [] [LiteralExpression (IntLiteral 1)]
     ]
-    match Pipeline.checkForwardReferences defs with
+    match Pipeline.checkForwardReferences SymbolTable.empty defs with
     | Ok _ -> Assert.Fail("Expected forward reference error")
     | Error msg -> Assert.Contains("forward reference", msg)
 
@@ -74,7 +74,7 @@ let ``Valid declaration order succeeds`` () =
         mkFn "foo" ["Test"] [] [LiteralExpression (IntLiteral 1)]
         mkFn "bar" ["Test"] [] [FunctionCallExpression { FunctionName = "foo"; Arguments = [] }]
     ]
-    match Pipeline.checkForwardReferences defs with
+    match Pipeline.checkForwardReferences SymbolTable.empty defs with
     | Ok table -> Assert.True(table.Symbols.Count = 2)
     | Error msg -> Assert.Fail($"Unexpected error: {msg}")
 
@@ -85,7 +85,7 @@ let ``Function can reference its own parameters`` () =
             OperatorExpression { Left = IdentifierExpression "x"; Operator = Add; Right = IdentifierExpression "y" }
         ]
     ]
-    match Pipeline.checkForwardReferences defs with
+    match Pipeline.checkForwardReferences SymbolTable.empty defs with
     | Ok _ -> ()
     | Error msg -> Assert.Fail($"Unexpected error: {msg}")
 
@@ -95,7 +95,7 @@ let ``Duplicate symbol is rejected`` () =
         mkFn "foo" ["Test"] [] [LiteralExpression (IntLiteral 1)]
         mkFn "foo" ["Test"] [] [LiteralExpression (IntLiteral 2)]
     ]
-    match Pipeline.checkForwardReferences defs with
+    match Pipeline.checkForwardReferences SymbolTable.empty defs with
     | Ok _ -> Assert.Fail("Expected duplicate error")
     | Error msg -> Assert.Contains("duplicate", msg)
 
@@ -106,7 +106,7 @@ let ``Private function is accessible from same module`` () =
         |> fun d -> match d with TopFunction fn -> TopFunction { fn with Visibility = Visibility.Private } | x -> x
         mkFn "main" ["App"] [] [FunctionCallExpression { FunctionName = "helper"; Arguments = [] }]
     ]
-    match Pipeline.checkForwardReferences defs with
+    match Pipeline.checkForwardReferences SymbolTable.empty defs with
     | Ok _ -> ()
     | Error msg -> Assert.Fail($"Unexpected error: {msg}")
 
@@ -117,6 +117,6 @@ let ``Private function is not accessible from different module`` () =
         |> fun d -> match d with TopFunction fn -> TopFunction { fn with Visibility = Visibility.Private } | x -> x
         mkFn "caller" ["App"] [] [FunctionCallExpression { FunctionName = "Internal.secret"; Arguments = [] }]
     ]
-    match Pipeline.checkForwardReferences defs with
+    match Pipeline.checkForwardReferences SymbolTable.empty defs with
     | Ok _ -> Assert.Fail("Expected error for private access")
     | Error msg -> Assert.Contains("forward reference", msg)

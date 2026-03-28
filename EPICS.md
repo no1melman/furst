@@ -7,14 +7,14 @@
 
 | ADR | Title | Status | Covered by | % Done |
 |-----|-------|--------|-----------|--------|
-| 0001 | Symbol tracking | Proposed | 5b.7, 5b.8, 5b.10 | 66% |
+| 0001 | Symbol tracking | Proposed | 5b.7, 5b.8, 5b.10 | 100% |
 | 0002 | Type system & inference | Proposed | 6.1–6.3, 6.11–6.13, 11.1 | 0% |
 | 0003 | Async/green threads | Proposed | 12.1 | 0% |
 | 0004 | Memory ownership | Proposed | 8.1 | 0% |
 | 0005 | Resource management | Proposed | 9.1 | 0% |
 | 0006 | Allocation strategy | Proposed | 8.1 | 0% |
 | 0007 | String/collection types | Proposed | 10.1 | 0% |
-| 0008 | Module system | Accepted | 5b.1–5b.16 | 50% |
+| 0008 | Module system | Accepted | 5b.1–5b.16 | 81% |
 
 ## Epic 1: Build Infrastructure
 
@@ -81,11 +81,11 @@
 - [x] 5b.6 `private` keyword — private-to-mod scoping for functions and types, replaces `export` as the visibility modifier
 - [x] 5b.7 Scoped symbol table — symbols keyed by fully qualified path (`lib.mod.name` for libraries, `mod.name` for executables), enforced declaration order (F#-style)
 - [x] 5b.8 No-shadowing enforcement — compile error on duplicate symbol at same fully qualified path, language-wide
-- [ ] 5b.9 `open` keyword — brings direct mods under specified lib path into scope, shallow only (not sub-paths)
-- [ ] 5b.10 Qualified access — resolve `List.map`, `Furst.Collections.List.map` etc. through scoped symbol table
-- [ ] 5b.11 Additive mod merging — multiple files contribute to same mod; second file must use explicit `mod` (filesystem convention would give wrong name)
-- [ ] 5b.12 Proto/fso update — add module path and `is_private` visibility flag to .fso format (replaces lost export status)
-- [ ] 5b.13 Manifest update — `.fsi` carries fully qualified `lib.mod.function` paths, not just flat function names
+- [x] 5b.9 `open` keyword — brings direct mods under specified lib path into scope, shallow only (not sub-paths)
+- [x] 5b.10 Qualified access — resolve `List.map`, `Furst.Collections.List.map` etc. through scoped symbol table
+- [x] 5b.11 Additive mod merging — multiple files contribute to same mod; second file must use explicit `mod` (filesystem convention would give wrong name)
+- [x] 5b.12 Proto/fso update — add module path and `is_private` visibility flag to .fso format (replaces lost export status)
+- [x] 5b.13 Manifest update — `.fsi` carries fully qualified `lib.mod.function` paths, not just flat function names
 - [ ] 5b.14 Backend module-aware codegen — namespaced symbol names in LLVM IR
 - [ ] 5b.15 Entry point convention — compiler finds function named `main` in last source file's implicit mod, executable projects only
 - [ ] 5b.16 Tests — mod scoping, lib paths, open resolution, qualified access, shadowing errors, implicit mods, private visibility, additive merging, entry point
