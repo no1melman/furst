@@ -14,7 +14,7 @@
 | 0005 | Resource management | Proposed | 9.1 | 0% |
 | 0006 | Allocation strategy | Proposed | 8.1 | 0% |
 | 0007 | String/collection types | Proposed | 10.1 | 0% |
-| 0008 | Module system | Accepted | 5b.1–5b.16 | 38% |
+| 0008 | Module system | Accepted | 5b.1–5b.16 | 50% |
 
 ## Epic 1: Build Infrastructure
 
@@ -77,8 +77,8 @@
 - [x] 5b.2 Implicit mod from filesystem — filename becomes mod name, directories extend lib path (e.g. `src/collections/list.fu` with yaml root `Furst` → lib `Furst.Collections`, mod `List`)
 - [x] 5b.3 `lib` keyword parsing — parse `lib Path` in library projects only (compile error in executables), relative to yaml root name, overrides filesystem-derived lib path
 - [x] 5b.4 Yaml schema update — add `library: name:` field for root lib name (library projects only). Top-level `name:` remains as project name for all project types
-- [ ] 5b.5 Visibility flip — remove `export` keyword, switch to public-by-default. Remove `ExportedFuncDef`/`TopExportedFunction` from AST and lowering, update parser and all tests
-- [ ] 5b.6 `private` keyword — private-to-mod scoping for functions and types, replaces `export` as the visibility modifier
+- [x] 5b.5 Visibility flip — remove `export` keyword, switch to public-by-default. Remove `ExportedFuncDef`/`TopExportedFunction` from AST and lowering, update parser and all tests
+- [x] 5b.6 `private` keyword — private-to-mod scoping for functions and types, replaces `export` as the visibility modifier
 - [x] 5b.7 Scoped symbol table — symbols keyed by fully qualified path (`lib.mod.name` for libraries, `mod.name` for executables), enforced declaration order (F#-style)
 - [x] 5b.8 No-shadowing enforcement — compile error on duplicate symbol at same fully qualified path, language-wide
 - [ ] 5b.9 `open` keyword — brings direct mods under specified lib path into scope, shallow only (not sub-paths)

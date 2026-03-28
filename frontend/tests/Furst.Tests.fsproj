@@ -13,6 +13,7 @@
     <Compile Include="Parse/ParsersTests.fs" />
     <Compile Include="Parse/StructParserTests.fs" />
     <Compile Include="Check/SymbolTableTests.fs" />
+    <Compile Include="Check/VisibilityTests.fs" />
     <Compile Include="Core/AstWalkerTests.fs" />
     <Compile Include="Parse/Ast/LetBindingTests.fs" />
     <Compile Include="Parse/Ast/FunctionDefinitionTests.fs" />

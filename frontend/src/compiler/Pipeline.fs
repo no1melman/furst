@@ -107,7 +107,7 @@ let checkForwardReferences (defs: TopLevelDef list) : Result<SymbolTable.SymbolT
                 let tableWithModScope = SymbolTable.addOpen parts table
                 let forwardRef =
                     externalRefs |> Set.toList |> List.tryFind (fun name ->
-                        SymbolTable.resolveSymbol name tableWithModScope |> Option.isNone)
+                        SymbolTable.resolveSymbolFrom parts name tableWithModScope |> Option.isNone)
                 match forwardRef with
                 | Some name ->
                     let (Line line) = fn.Location.StartLine
@@ -124,28 +124,30 @@ let checkForwardReferences (defs: TopLevelDef list) : Result<SymbolTable.SymbolT
 
 /// Resolve qualified names in lowered function bodies using symbol table + opens
 let resolveNames (symTable: SymbolTable.SymbolTable) (defs: TopLevelDef list) : TopLevelDef list =
-    let rec resolveExpr (expr: Expression) : Expression =
-        match expr with
-        | FunctionCallExpression call ->
-            // try resolving via symbol table
-            let resolvedName =
-                match SymbolTable.resolveSymbol call.FunctionName symTable with
-                | Some info -> SymbolTable.qualifiedKey info.FullPath
-                | None -> call.FunctionName
-            FunctionCallExpression { call with FunctionName = resolvedName; Arguments = call.Arguments |> List.map resolveExpr }
-        | IdentifierExpression name ->
-            match SymbolTable.resolveSymbol name symTable with
-            | Some info -> IdentifierExpression (SymbolTable.qualifiedKey info.FullPath)
-            | None -> expr
-        | OperatorExpression op ->
-            OperatorExpression { op with Left = resolveExpr op.Left; Right = resolveExpr op.Right }
-        | LetBindingExpression lb ->
-            LetBindingExpression { lb with Value = resolveExpr lb.Value }
-        | _ -> expr
+    let resolveExprFrom (callerMod: string list) =
+        let rec resolveExpr (expr: Expression) : Expression =
+            match expr with
+            | FunctionCallExpression call ->
+                let resolvedName =
+                    match SymbolTable.resolveSymbolFrom callerMod call.FunctionName symTable with
+                    | Some info -> SymbolTable.qualifiedKey info.FullPath
+                    | None -> call.FunctionName
+                FunctionCallExpression { call with FunctionName = resolvedName; Arguments = call.Arguments |> List.map resolveExpr }
+            | IdentifierExpression name ->
+                match SymbolTable.resolveSymbolFrom callerMod name symTable with
+                | Some info -> IdentifierExpression (SymbolTable.qualifiedKey info.FullPath)
+                | None -> expr
+            | OperatorExpression op ->
+                OperatorExpression { op with Left = resolveExpr op.Left; Right = resolveExpr op.Right }
+            | LetBindingExpression lb ->
+                LetBindingExpression { lb with Value = resolveExpr lb.Value }
+            | _ -> expr
+        resolveExpr
 
     defs |> List.map (fun def ->
         match def with
         | TopFunction fn ->
-            TopFunction { fn with Body = fn.Body |> List.map resolveExpr }
+            let (ModulePath parts) = fn.ModulePath
+            TopFunction { fn with Body = fn.Body |> List.map (resolveExprFrom parts) }
         | other -> other
     )

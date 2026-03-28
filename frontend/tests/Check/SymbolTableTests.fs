@@ -98,3 +98,25 @@ let ``Duplicate symbol is rejected`` () =
     match Pipeline.checkForwardReferences defs with
     | Ok _ -> Assert.Fail("Expected duplicate error")
     | Error msg -> Assert.Contains("duplicate", msg)
+
+[<Fact>]
+let ``Private function is accessible from same module`` () =
+    let defs = [
+        mkFn "helper" ["App"] [] [LiteralExpression (IntLiteral 1)]
+        |> fun d -> match d with TopFunction fn -> TopFunction { fn with Visibility = Visibility.Private } | x -> x
+        mkFn "main" ["App"] [] [FunctionCallExpression { FunctionName = "helper"; Arguments = [] }]
+    ]
+    match Pipeline.checkForwardReferences defs with
+    | Ok _ -> ()
+    | Error msg -> Assert.Fail($"Unexpected error: {msg}")
+
+[<Fact>]
+let ``Private function is not accessible from different module`` () =
+    let defs = [
+        mkFn "secret" ["Internal"] [] [LiteralExpression (IntLiteral 1)]
+        |> fun d -> match d with TopFunction fn -> TopFunction { fn with Visibility = Visibility.Private } | x -> x
+        mkFn "caller" ["App"] [] [FunctionCallExpression { FunctionName = "Internal.secret"; Arguments = [] }]
+    ]
+    match Pipeline.checkForwardReferences defs with
+    | Ok _ -> Assert.Fail("Expected error for private access")
+    | Error msg -> Assert.Contains("forward reference", msg)
