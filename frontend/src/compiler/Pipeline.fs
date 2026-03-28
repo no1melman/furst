@@ -32,63 +32,104 @@ let private convertLocalEnv (fnName: string) (localEnv: TypeInference.TypeEnv) (
                 | Error e -> Error e
     ) (Ok Map.empty)
 
-/// Run type inference and build type maps
+/// Intermediate inference state — keeps InferTypes (not yet converted to TypeDefinitions)
+type private FnInferInfo = {
+    ParamTypes: TypeInference.InferType list
+    ReturnType: TypeInference.InferType
+    LocalEnv: TypeInference.TypeEnv
+    ParamNames: Set<string>
+    OuterNames: Set<string>
+}
+
+/// Run type inference and build type maps.
+/// Two-phase: first infer all functions (keeping TVars), then convert to TypeDefinitions.
+/// This lets call sites constrain earlier functions' TVars before defaulting to i32.
 let inferTypes (nodes: ExpressionNode list) : Result<InferResult, string> =
     TypeInference.resetVars ()
-    nodes |> List.fold (fun acc node ->
-        match acc with
-        | Error _ -> acc
-        | Ok (result, env) ->
-            match node.Expr with
-            | FunctionDefinitionExpression funcDef ->
-                let details = funcDetails funcDef
-                match TypeInference.inferFunction env details with
-                | Ok (fnType, substitution, localEnv) ->
-                    let env' = Map.add details.Identifier fnType env
-                    match fnType with
-                    | TypeInference.TFun (paramTypes, returnType) ->
-                        let resolvedParams = paramTypes |> List.map (TypeInference.applySubst substitution)
-                        let resolvedReturn = TypeInference.applySubst substitution returnType
-                        match resolvedParams |> List.map (convertType details.Identifier) |> List.fold (fun acc r ->
-                            match acc, r with
-                            | Error e, _ -> Error e
-                            | _, Error e -> Error e
-                            | Ok xs, Ok x -> Ok (xs @ [x])) (Ok []) with
-                        | Error e -> Error e
-                        | Ok paramTypeDefs ->
-                            match convertType details.Identifier resolvedReturn with
-                            | Error e -> Error e
-                            | Ok returnTypeDef ->
-                                let paramNames = details.Parameters |> List.map (fun p -> let (Word w) = p.Name in w) |> Set.ofList
-                                let outerNames = env |> Map.toSeq |> Seq.map fst |> Set.ofSeq
-                                match convertLocalEnv details.Identifier localEnv paramNames outerNames with
-                                | Error e -> Error e
-                                | Ok bodyTypes ->
-                                    let result' = {
-                                        result with
-                                            TypeMap = Map.add details.Identifier (paramTypeDefs, returnTypeDef) result.TypeMap
-                                            BodyTypes = Map.add details.Identifier bodyTypes result.BodyTypes
-                                    }
-                                    Ok (result', env')
-                    | _ -> Ok (result, env')
-                | Result.Error e ->
-                    let e' = { e with TypeInference.TypeError.Location = Some node.Location }
-                    Error (TypeInference.formatTypeError e')
-            | LetBindingExpression letBinding ->
-                match TypeInference.infer env letBinding.Value with
-                | Ok (inferredType, _) ->
-                    match convertType letBinding.Name inferredType with
+
+    // Phase 1: infer all function types, accumulating a global substitution
+    let phase1 =
+        nodes |> List.fold (fun acc node ->
+            match acc with
+            | Error _ -> acc
+            | Ok (fnInfos, globalSubst, env) ->
+                match node.Expr with
+                | FunctionDefinitionExpression funcDef ->
+                    let details = funcDetails funcDef
+                    // apply global substitution to env so call sites see solved types
+                    let env' = env |> Map.map (fun _ t -> TypeInference.applySubst globalSubst t)
+                    match TypeInference.inferFunction env' details with
+                    | Ok (fnType, substitution, localEnv) ->
+                        let globalSubst' = TypeInference.composeSubst substitution globalSubst
+                        let env'' = Map.add details.Identifier fnType env
+                        match fnType with
+                        | TypeInference.TFun (paramTypes, returnType) ->
+                            let paramNames = details.Parameters |> List.map (fun p -> let (Word w) = p.Name in w) |> Set.ofList
+                            let outerNames = env |> Map.toSeq |> Seq.map fst |> Set.ofSeq
+                            let info = {
+                                ParamTypes = paramTypes
+                                ReturnType = returnType
+                                LocalEnv = localEnv
+                                ParamNames = paramNames
+                                OuterNames = outerNames
+                            }
+                            Ok ((details.Identifier, info) :: fnInfos, globalSubst', env'')
+                        | _ -> Ok (fnInfos, globalSubst', env'')
+                    | Result.Error e ->
+                        let e' = { e with TypeInference.TypeError.Location = Some node.Location }
+                        Error (TypeInference.formatTypeError e')
+                | LetBindingExpression letBinding ->
+                    let env' = env |> Map.map (fun _ t -> TypeInference.applySubst globalSubst t)
+                    match TypeInference.infer env' letBinding.Value with
+                    | Ok (inferredType, subst) ->
+                        let globalSubst' = TypeInference.composeSubst subst globalSubst
+                        let env'' = Map.add letBinding.Name inferredType env
+                        let info = {
+                            ParamTypes = []
+                            ReturnType = inferredType
+                            LocalEnv = Map.empty
+                            ParamNames = Set.empty
+                            OuterNames = Set.empty
+                        }
+                        Ok ((letBinding.Name, info) :: fnInfos, globalSubst', env'')
+                    | Result.Error e ->
+                        let e' = { e with TypeInference.TypeError.Location = Some node.Location }
+                        Error (TypeInference.formatTypeError e')
+                | _ -> Ok (fnInfos, globalSubst, env)
+        ) (Ok ([], TypeInference.emptySubst, Map.empty))
+
+    match phase1 with
+    | Error e -> Error e
+    | Ok (fnInfos, globalSubst, _) ->
+        // Phase 2: apply global substitution and convert to TypeDefinitions
+        let fnInfos = List.rev fnInfos
+        fnInfos |> List.fold (fun acc (name, info) ->
+            match acc with
+            | Error _ -> acc
+            | Ok result ->
+                let resolvedParams = info.ParamTypes |> List.map (TypeInference.applySubst globalSubst)
+                let resolvedReturn = TypeInference.applySubst globalSubst info.ReturnType
+                match resolvedParams |> List.map (convertType name) |> List.fold (fun acc r ->
+                    match acc, r with
+                    | Error e, _ -> Error e
+                    | _, Error e -> Error e
+                    | Ok xs, Ok x -> Ok (xs @ [x])) (Ok []) with
+                | Error e -> Error e
+                | Ok paramTypeDefs ->
+                    match convertType name resolvedReturn with
                     | Error e -> Error e
-                    | Ok typeDef ->
-                        let env' = Map.add letBinding.Name inferredType env
-                        let result' = { result with TypeMap = Map.add letBinding.Name ([], typeDef) result.TypeMap }
-                        Ok (result', env')
-                | Result.Error e ->
-                    let e' = { e with TypeInference.TypeError.Location = Some node.Location }
-                    Error (TypeInference.formatTypeError e')
-            | _ -> Ok (result, env)
-    ) (Ok ({ TypeMap = Map.empty; BodyTypes = Map.empty }, Map.empty))
-    |> Result.map fst
+                    | Ok returnTypeDef ->
+                        let resolvedLocalEnv = info.LocalEnv |> Map.map (fun _ t -> TypeInference.applySubst globalSubst t)
+                        match convertLocalEnv name resolvedLocalEnv info.ParamNames info.OuterNames with
+                        | Error e -> Error e
+                        | Ok bodyTypes ->
+                            let result' = {
+                                result with
+                                    TypeMap = Map.add name (paramTypeDefs, returnTypeDef) result.TypeMap
+                                    BodyTypes = Map.add name bodyTypes result.BodyTypes
+                            }
+                            Ok result'
+        ) (Ok { TypeMap = Map.empty; BodyTypes = Map.empty })
 
 /// Update let binding types in expression bodies using body type map
 let rec private applyBodyTypes (bodyTypes: Map<string, TypeDefinitions>) (expr: Expression) : Expression =

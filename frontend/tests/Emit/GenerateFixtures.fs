@@ -119,6 +119,17 @@ let main n =
   compute n
 """
 
+[<Fact>]
+let ``Generate fixture: float_add`` () =
+    writeFixture "float_add" """
+let addFloats x y =
+  x + y
+
+let main =
+  let r = addFloats 1.5 2.5
+  0
+"""
+
 let private writeFixtureWithPath (name: string) (modPath: string list) (source: string) =
     Directory.CreateDirectory(fixtureDir) |> ignore
     let outputPath = Path.Combine(fixtureDir, name + ".fso")

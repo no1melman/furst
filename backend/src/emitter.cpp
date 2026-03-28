@@ -15,6 +15,7 @@
 #include <llvm/TargetParser/Host.h>
 
 #include <fstream>
+#include <sstream>
 #include <unordered_map>
 
 namespace furst {
@@ -64,12 +65,10 @@ static llvm::Type* resolve_type(llvm::LLVMContext& ctx, const ast::TypeRef& type
 // Forward declaration — mutually recursive with emit_operation and emit_let_binding
 static llvm::Value* emit_expression(llvm::IRBuilder<>& builder, llvm::Module& mod,
                                     NamedValues& names, const DebugCtx& dbg,
-                                    const NameMap& name_map,
-                                    const ast::Expression& expr);
+                                    const NameMap& name_map, const ast::Expression& expr);
 
 static llvm::Value* emit_operation(llvm::IRBuilder<>& builder, llvm::Module& mod,
-                                   NamedValues& names, const DebugCtx& dbg,
-                                   const NameMap& name_map,
+                                   NamedValues& names, const DebugCtx& dbg, const NameMap& name_map,
                                    const ast::Operation& op) {
     auto* lhs = emit_expression(builder, mod, names, dbg, name_map, op.left);
     auto* rhs = emit_expression(builder, mod, names, dbg, name_map, op.right);
@@ -78,13 +77,18 @@ static llvm::Value* emit_operation(llvm::IRBuilder<>& builder, llvm::Module& mod
         return nullptr;
     }
 
+    auto is_fp = lhs->getType()->isFloatingPointTy();
+
     switch (op.op) {
     case ast::Operator::Add:
-        return builder.CreateAdd(lhs, rhs, "addtmp");
+        return is_fp ? builder.CreateFAdd(lhs, rhs, "faddtmp")
+                     : builder.CreateAdd(lhs, rhs, "addtmp");
     case ast::Operator::Subtract:
-        return builder.CreateSub(lhs, rhs, "subtmp");
+        return is_fp ? builder.CreateFSub(lhs, rhs, "fsubtmp")
+                     : builder.CreateSub(lhs, rhs, "subtmp");
     case ast::Operator::Multiply:
-        return builder.CreateMul(lhs, rhs, "multmp");
+        return is_fp ? builder.CreateFMul(lhs, rhs, "fmultmp")
+                     : builder.CreateMul(lhs, rhs, "multmp");
     }
 
     return nullptr;
@@ -92,8 +96,7 @@ static llvm::Value* emit_operation(llvm::IRBuilder<>& builder, llvm::Module& mod
 
 static llvm::Value* emit_let_binding(llvm::IRBuilder<>& builder, llvm::Module& mod,
                                      NamedValues& names, const DebugCtx& dbg,
-                                     const NameMap& name_map,
-                                     const ast::LetBinding& binding) {
+                                     const NameMap& name_map, const ast::LetBinding& binding) {
     auto* val = emit_expression(builder, mod, names, dbg, name_map, binding.value);
     if (val == nullptr) {
         return nullptr;
@@ -108,8 +111,7 @@ static llvm::Value* emit_let_binding(llvm::IRBuilder<>& builder, llvm::Module& m
 
 static llvm::Value* emit_expression(llvm::IRBuilder<>& builder, llvm::Module& mod,
                                     NamedValues& names, const DebugCtx& dbg,
-                                    const NameMap& name_map,
-                                    const ast::Expression& expr) {
+                                    const NameMap& name_map, const ast::Expression& expr) {
     if (!expr.kind) {
         return nullptr;
     }
@@ -151,7 +153,8 @@ static llvm::Value* emit_expression(llvm::IRBuilder<>& builder, llvm::Module& mo
 
     // Let binding
     if (std::holds_alternative<ast::LetBinding>(kind)) {
-        return emit_let_binding(builder, mod, names, dbg, name_map, std::get<ast::LetBinding>(kind));
+        return emit_let_binding(builder, mod, names, dbg, name_map,
+                                std::get<ast::LetBinding>(kind));
     }
 
     // Function call
@@ -187,6 +190,22 @@ static llvm::Value* emit_expression(llvm::IRBuilder<>& builder, llvm::Module& mo
 
 // -- Public API --
 
+static llvm::Type* type_from_string(llvm::LLVMContext& ctx, const std::string& s) {
+    if (s == "i64") {
+        return llvm::Type::getInt64Ty(ctx);
+    }
+    if (s == "float") {
+        return llvm::Type::getFloatTy(ctx);
+    }
+    if (s == "double") {
+        return llvm::Type::getDoubleTy(ctx);
+    }
+    if (s == "string") {
+        return llvm::PointerType::getUnqual(llvm::Type::getInt8Ty(ctx));
+    }
+    return llvm::Type::getInt32Ty(ctx); // default: i32
+}
+
 static void declare_externals(llvm::LLVMContext& ctx, llvm::Module& mod,
                               const std::vector<std::string>& manifests) {
     for (const auto& manifest_path : manifests) {
@@ -196,13 +215,13 @@ static void declare_externals(llvm::LLVMContext& ctx, llvm::Module& mod,
         }
         auto line = std::string{};
         while (std::getline(file, line)) {
-            // format: "qualified.path param_count"
-            auto space = line.find(' ');
-            if (space == std::string::npos) {
+            // format: "qualified.path param_count ret_type [param_types...]"
+            auto iss = std::istringstream{line};
+            auto qualified_name = std::string{};
+            auto param_count = 0;
+            if (!(iss >> qualified_name >> param_count)) {
                 continue;
             }
-            auto qualified_name = line.substr(0, space);
-            auto param_count = std::stoi(line.substr(space + 1));
 
             // mangle dotted path to __ separators (e.g. Dep.Helpers.greet -> Dep__Helpers__greet)
             auto mangled = std::string{};
@@ -219,11 +238,21 @@ static void declare_externals(llvm::LLVMContext& ctx, llvm::Module& mod,
                 continue;
             }
 
-            // all params are i32 for now
-            auto param_types = std::vector<llvm::Type*>(static_cast<size_t>(param_count),
-                                                        llvm::Type::getInt32Ty(ctx));
-            auto* fn_type =
-                llvm::FunctionType::get(llvm::Type::getInt32Ty(ctx), param_types, false);
+            // parse return type (default i32 for backwards compat)
+            auto ret_type_str = std::string{};
+            auto* ret_type = (iss >> ret_type_str) ? type_from_string(ctx, ret_type_str)
+                                                   : llvm::Type::getInt32Ty(ctx);
+
+            // parse param types
+            auto param_types = std::vector<llvm::Type*>{};
+            param_types.reserve(static_cast<size_t>(param_count));
+            for (auto i = 0; i < param_count; ++i) {
+                auto pt = std::string{};
+                param_types.push_back((iss >> pt) ? type_from_string(ctx, pt)
+                                                  : llvm::Type::getInt32Ty(ctx));
+            }
+
+            auto* fn_type = llvm::FunctionType::get(ret_type, param_types, false);
             llvm::Function::Create(fn_type, llvm::Function::ExternalLinkage, mangled, mod);
         }
     }
@@ -249,7 +278,9 @@ Result<EmittedModule, CompileError> emit_module(const ast::FurstModule& module,
     // Build name map: original name -> mangled name
     auto name_map = NameMap{};
     for (const auto& def : module.definitions) {
-        if (!std::holds_alternative<ast::FunctionDef>(def)) continue;
+        if (!std::holds_alternative<ast::FunctionDef>(def)) {
+            continue;
+        }
         const auto& fn = std::get<ast::FunctionDef>(def);
         if (fn.name != "main" && !fn.module_path.empty()) {
             auto mangled = std::string{};
@@ -289,13 +320,27 @@ Result<EmittedModule, CompileError> emit_module(const ast::FurstModule& module,
 
         auto* ret_type = resolve_type(*ctx, fn.return_type);
         auto* fn_type = llvm::FunctionType::get(ret_type, param_types, false);
-        auto linkage = fn.is_private ? llvm::Function::InternalLinkage : llvm::Function::ExternalLinkage;
-        auto* llvm_fn =
-            llvm::Function::Create(fn_type, linkage, mangled_name, *llvm_mod);
+        auto linkage =
+            fn.is_private ? llvm::Function::InternalLinkage : llvm::Function::ExternalLinkage;
+        auto* llvm_fn = llvm::Function::Create(fn_type, linkage, mangled_name, *llvm_mod);
 
         // Create debug info for function
         auto line = static_cast<unsigned>(fn.location.start_line);
-        auto* di_ret_type = dib.createBasicType("i32", 32, llvm::dwarf::DW_ATE_signed);
+        auto* di_ret_type = [&]() -> llvm::DIType* {
+            if (std::holds_alternative<ast::BuiltinKind>(fn.return_type)) {
+                switch (std::get<ast::BuiltinKind>(fn.return_type)) {
+                case ast::BuiltinKind::I64:
+                    return dib.createBasicType("i64", 64, llvm::dwarf::DW_ATE_signed);
+                case ast::BuiltinKind::Float:
+                    return dib.createBasicType("float", 32, llvm::dwarf::DW_ATE_float);
+                case ast::BuiltinKind::Double:
+                    return dib.createBasicType("double", 64, llvm::dwarf::DW_ATE_float);
+                default:
+                    break;
+                }
+            }
+            return dib.createBasicType("i32", 32, llvm::dwarf::DW_ATE_signed);
+        }();
         auto* di_fn_type = dib.createSubroutineType(dib.getOrCreateTypeArray({di_ret_type}));
         auto* di_sp =
             dib.createFunction(di_file, fn.name, mangled_name, di_file, line, di_fn_type, line,
@@ -331,7 +376,7 @@ Result<EmittedModule, CompileError> emit_module(const ast::FurstModule& module,
         if (last_val != nullptr) {
             builder.CreateRet(last_val);
         } else {
-            builder.CreateRet(builder.getInt32(0));
+            builder.CreateRet(llvm::Constant::getNullValue(ret_type));
         }
     }
 

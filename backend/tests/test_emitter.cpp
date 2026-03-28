@@ -210,6 +210,31 @@ TEST(Emitter, PublicFunctionHasExternalLinkage) {
         << "public function should not have internal linkage\n" << result.ir;
 }
 
+// -- Float arithmetic --
+
+TEST(Emitter, FloatAddEmitsFAdd) {
+    auto result = furst::compile("tests/fixtures/float_add.fso", {});
+    ASSERT_TRUE(result.success) << result.error_message;
+    EXPECT_TRUE(result.ir.find("fadd double") != std::string::npos)
+        << "expected fadd double instruction\n" << result.ir;
+}
+
+TEST(Emitter, FloatFunctionHasDoubleSignature) {
+    auto result = furst::compile("tests/fixtures/float_add.fso", {});
+    ASSERT_TRUE(result.success) << result.error_message;
+    EXPECT_TRUE(result.ir.find("define double @addFloats(double %x, double %y)") != std::string::npos)
+        << "expected double params and return type\n" << result.ir;
+}
+
+TEST(Emitter, FloatFunctionCallUsesDouble) {
+    auto result = furst::compile("tests/fixtures/float_add.fso", {});
+    ASSERT_TRUE(result.success) << result.error_message;
+    EXPECT_TRUE(result.ir.find("call double @addFloats") != std::string::npos)
+        << "expected call with double return\n" << result.ir;
+}
+
+// -- Return value --
+
 TEST(Emitter, FunctionBodyReturnsLastExpression) {
     auto result = furst::compile("tests/fixtures/let_binding.fso", {});
     ASSERT_TRUE(result.success) << result.error_message;
