@@ -164,4 +164,12 @@ let compileFiles (libRoot: string option) (files: string list) (manifests: strin
             | Result.Error error -> Result.Error error
             | Ok symTable ->
                 let resolved = Pipeline.resolveNames symTable ordered
+                // For executables (no libRoot): strip module path from `main` so backend emits bare entry point
+                let resolved =
+                    if libRoot.IsNone then
+                        resolved |> List.map (function
+                            | Lowered.TopFunction fn when fn.Name = "main" ->
+                                Lowered.TopFunction { fn with ModulePath = ModulePath [] }
+                            | def -> def)
+                    else resolved
                 Result.Ok resolved

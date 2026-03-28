@@ -13,7 +13,13 @@
     <Compile Include="Parse/ParsersTests.fs" />
     <Compile Include="Parse/StructParserTests.fs" />
     <Compile Include="Check/SymbolTableTests.fs" />
-    <Compile Include="Check/VisibilityTests.fs" />
+    <Compile Include="Compile/CompileHelper.fs" />
+    <Compile Include="Compile/ModuleScopingTests.fs" />
+    <Compile Include="Compile/ModuleScopingErrorTests.fs" />
+    <Compile Include="Compile/VisibilityTests.fs" />
+    <Compile Include="Compile/VisibilityErrorTests.fs" />
+    <Compile Include="Compile/EntryPointTests.fs" />
+    <Compile Include="Compile/DependencyTests.fs" />
     <Compile Include="Core/AstWalkerTests.fs" />
     <Compile Include="Parse/Ast/LetBindingTests.fs" />
     <Compile Include="Parse/Ast/FunctionDefinitionTests.fs" />

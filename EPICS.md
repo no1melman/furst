@@ -14,7 +14,7 @@
 | 0005 | Resource management | Proposed | 9.1 | 0% |
 | 0006 | Allocation strategy | Proposed | 8.1 | 0% |
 | 0007 | String/collection types | Proposed | 10.1 | 0% |
-| 0008 | Module system | Accepted | 5b.1–5b.16 | 88% |
+| 0008 | Module system | Accepted | 5b.1–5b.16 | 94% |
 
 ## Epic 1: Build Infrastructure
 
@@ -87,7 +87,7 @@
 - [x] 5b.12 Proto/fso update — add module path and `is_private` visibility flag to .fso format (replaces lost export status)
 - [x] 5b.13 Manifest update — `.fsi` carries fully qualified `lib.mod.function` paths, not just flat function names
 - [x] 5b.14 Backend module-aware codegen — namespaced symbol names in LLVM IR
-- [ ] 5b.15 Entry point convention — compiler finds function named `main` in last source file's implicit mod, executable projects only
+- [x] 5b.15 Entry point convention — compiler finds function named `main` in last source file's implicit mod, executable projects only
 - [ ] 5b.16 Tests — mod scoping, lib paths, open resolution, qualified access, shadowing errors, implicit mods, private visibility, additive merging, entry point
 
 Deferred:
