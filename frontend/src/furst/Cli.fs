@@ -18,7 +18,7 @@ let run (argv: string array) =
             Commands.New.run { Name = name; OutputDir = outputDir }
         | CliArgs.Build buildArgs ->
             match buildArgs.TryGetResult BuildArgs.File with
-            | Some file -> Commands.Build.run [file] (Path.GetFileNameWithoutExtension(file)) None None []
+            | Some file -> Commands.Build.run [file] (Path.GetFileNameWithoutExtension(file)) None None None []
             | None -> Commands.Build.runProject ()
         | CliArgs.Run runArgs ->
             match runArgs.TryGetResult RunArgs.File with

@@ -37,7 +37,7 @@ let private invokeAr (objPaths: string list) (archivePath: string) =
     else
         Result.Ok archivePath
 
-let run (files: string list) (projectName: string) (targetTriple: string option) (projectType: string option) (depPaths: (string * string) list) =
+let run (files: string list) (projectName: string) (targetTriple: string option) (projectType: string option) (libRoot: string option) (depPaths: (string * string) list) =
     let isProject = File.Exists "furst.yaml"
     let buildDir = if isProject then "build" else Path.GetDirectoryName(files.Head)
     let binDir = if isProject then "bin" else Path.GetDirectoryName(files.Head)
@@ -48,7 +48,7 @@ let run (files: string list) (projectName: string) (targetTriple: string option)
 
     for file in files do printfn "  %s" file
 
-    match Compiler.compileFiles files with
+    match Compiler.compileFiles libRoot files with
     | Result.Error error -> AnsiConsole.MarkupLine $"[red]{Markup.Escape error}[/]"; 1
     | Ok lowered ->
         let lowered = lowered
@@ -103,6 +103,10 @@ let rec runSingleProject (projectDir: string) =
                     match project.Type with
                     | ProjectConfig.Library -> Some "library"
                     | ProjectConfig.Executable -> None
+                let libRoot =
+                    match project.Type with
+                    | ProjectConfig.Library -> project.Library
+                    | ProjectConfig.Executable -> None
 
                 let mutable depLibs = []
                 let mutable depFailed = false
@@ -127,7 +131,7 @@ let rec runSingleProject (projectDir: string) =
                 if depFailed then 1
                 else
                     printfn "building %s (%s) for %s" project.Name project.Version (triple |> Option.defaultValue "host")
-                    run project.Sources project.Name triple projType (List.rev depLibs)
+                    run project.Sources project.Name triple projType libRoot (List.rev depLibs)
     Directory.SetCurrentDirectory(prevDir)
     result
 

@@ -14,7 +14,7 @@ let private executeProgram (exePath: string) (args: string list) =
 
 let run (file: string) (args: string list) =
     let baseName = Path.GetFileNameWithoutExtension(file)
-    let buildResult = Commands.Build.run [file] baseName None None []
+    let buildResult = Commands.Build.run [file] baseName None None None []
     if buildResult <> 0 then buildResult
     else
         let isProject = File.Exists "furst.yaml"

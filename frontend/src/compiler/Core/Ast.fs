@@ -89,6 +89,7 @@ type BodyExpression = BodyExpression of Expression list
     | LiteralExpression of LiteralValue
     | StructExpression of StructDefinition
     | ModuleDeclaration of string list * Expression list
+    | LibDeclaration of string list
     | OpenDeclaration of string list
 
 type ExpressionNode = {

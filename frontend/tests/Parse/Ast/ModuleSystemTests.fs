@@ -1,6 +1,7 @@
 module ModuleSystemTests
 
 open Xunit
+open Types
 open Ast
 open AstBuilder
 open Lexer
@@ -125,3 +126,50 @@ mod Bar
                 match node.Expr with
                 | ModuleDeclaration (_, body) -> Assert.Single(body) |> ignore
                 | _ -> Assert.Fail("Expected ModuleDeclaration")
+
+[<Fact>]
+let ``Lib declaration parses single name`` () =
+    let source = """
+lib Furst
+"""
+    match createAST "test" source with
+    | Error error -> Assert.Fail($"Parse failed: {error}")
+    | Ok rows ->
+        match rowToExpression rows.Head with
+        | Error error -> Assert.Fail($"AST build failed: {error.Message}")
+        | Ok exprNode ->
+            match exprNode.Expr with
+            | LibDeclaration parts ->
+                Assert.Equal<string list>(["Furst"], parts)
+            | _ -> Assert.Fail("Expected LibDeclaration")
+
+[<Fact>]
+let ``Lib declaration parses dotted name`` () =
+    let source = """
+lib Furst.Collections
+"""
+    match createAST "test" source with
+    | Error error -> Assert.Fail($"Parse failed: {error}")
+    | Ok rows ->
+        match rowToExpression rows.Head with
+        | Error error -> Assert.Fail($"AST build failed: {error.Message}")
+        | Ok exprNode ->
+            match exprNode.Expr with
+            | LibDeclaration parts ->
+                Assert.Equal<string list>(["Furst"; "Collections"], parts)
+            | _ -> Assert.Fail("Expected LibDeclaration")
+
+[<Fact>]
+let ``deriveModulePath without lib root`` () =
+    let (ModulePath parts) = Compiler.deriveModulePath None "src/collections/list.fu"
+    Assert.Equal<string list>(["Collections"; "List"], parts)
+
+[<Fact>]
+let ``deriveModulePath with lib root`` () =
+    let (ModulePath parts) = Compiler.deriveModulePath (Some "Furst.Collections") "src/list.fu"
+    Assert.Equal<string list>(["Furst"; "Collections"; "List"], parts)
+
+[<Fact>]
+let ``deriveModulePath with lib root and nested path`` () =
+    let (ModulePath parts) = Compiler.deriveModulePath (Some "Furst") "src/collections/list.fu"
+    Assert.Equal<string list>(["Furst"; "Collections"; "List"], parts)

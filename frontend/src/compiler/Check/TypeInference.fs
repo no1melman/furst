@@ -251,7 +251,7 @@ let rec infer (env: TypeEnv) (expr: Expression) : Result<InferType * Substitutio
     | FunctionDefinitionExpression _ -> Result.Ok (freshVar (), emptySubst)
     | StructExpression _ -> Result.Ok (freshVar (), emptySubst)
     | ModuleDeclaration _ -> Result.Ok (freshVar (), emptySubst)
-
+    | LibDeclaration _ -> Result.Ok (freshVar (), emptySubst)
     | OpenDeclaration _ -> Result.Ok (freshVar (), emptySubst)
 
 // -- Infer a top-level function definition --

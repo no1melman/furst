@@ -113,6 +113,13 @@ let splitArgumentGroups (tokens: TokenWithMetadata list) : TokenWithMetadata lis
 // Main expression builder - converts Row to ExpressionNode
 let rec rowToExpression (row: Row) : Result<ExpressionNode, CompileError> =
     match tokensFromRow row with
+    // lib Foo or lib Foo.Bar (library projects only, overrides filesystem lib path)
+    | Lib :: Name (Word name) :: _ ->
+        let loc = rowLocation row
+        Result.Ok { Expr = LibDeclaration [name]; Location = loc }
+    | Lib :: QualifiedName parts :: _ ->
+        let loc = rowLocation row
+        Result.Ok { Expr = LibDeclaration parts; Location = loc }
     // mod Foo or mod Foo.Bar (via qualified name)
     | Mod :: Name (Word name) :: _ ->
         buildModDeclaration [name] row
@@ -375,10 +382,19 @@ and buildModBody (bodyRows: Row list) : Result<Expression list, CompileError> =
     | e :: _ -> Result.Error e
     | [] ->
         let nodes = results |> List.choose (function Ok n -> Some n | _ -> None)
-        match nodes |> List.tryFind (fun n -> match n.Expr with ModuleDeclaration _ -> true | _ -> false) with
+        let badNode =
+            nodes |> List.tryFind (fun n ->
+                match n.Expr with
+                | ModuleDeclaration _ | LibDeclaration _ -> true
+                | _ -> false)
+        match badNode with
         | Some nested ->
+            let msg =
+                match nested.Expr with
+                | LibDeclaration _ -> "lib declarations are not allowed inside mod"
+                | _ -> "Nested mod declarations are not allowed"
             Result.Error {
-                Message = "Nested mod declarations are not allowed"
+                Message = msg
                 Line = nested.Location.StartLine
                 Column = nested.Location.StartCol
                 Length = TokenLength 0

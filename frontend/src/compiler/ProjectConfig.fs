@@ -20,11 +20,16 @@ type YamlDependency = {
 }
 
 [<CLIMutable>]
+type YamlLibrary = {
+    Name: string
+}
+
+[<CLIMutable>]
 type YamlProject = {
     Name: string
     Version: string
     Type: string
-    Library: string
+    Library: YamlLibrary
     Sources: string array
     Targets: YamlTarget array
     Dependencies: YamlDependency array
@@ -94,7 +99,10 @@ let private mapProject (y: YamlProject) : Result<Project, string> =
             Name = y.Name
             Version = y.Version
             Type = mapProjectType y.Type
-            Library = Option.ofObj y.Library
+            Library =
+                match box y.Library with
+                | null -> None
+                | _ -> Option.ofObj y.Library.Name
             Sources = sources
             Targets =
                 match y.Targets with

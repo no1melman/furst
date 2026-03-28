@@ -75,8 +75,55 @@ let buildSymbolTable (defs: TopLevelDef list) : Result<SymbolTable.SymbolTable, 
                 SymbolTable.addSymbol fullPath Visibility.Public 0 table
     ) (Ok SymbolTable.empty)
 
+/// Collect all referenced identifiers from an expression tree
+let rec private collectRefs (expr: Expression) : Set<string> =
+    match expr with
+    | IdentifierExpression name -> Set.singleton name
+    | FunctionCallExpression call ->
+        let argRefs = call.Arguments |> List.map collectRefs |> Set.unionMany
+        Set.add call.FunctionName argRefs
+    | OperatorExpression op ->
+        Set.union (collectRefs op.Left) (collectRefs op.Right)
+    | LetBindingExpression lb ->
+        collectRefs lb.Value
+    | _ -> Set.empty
+
+/// Check for forward references: each def's body can only reference symbols declared before it.
+/// Returns Error with location info on first forward reference found.
+let checkForwardReferences (defs: TopLevelDef list) : Result<SymbolTable.SymbolTable, string> =
+    defs |> List.fold (fun state def ->
+        match state with
+        | Result.Error _ -> state
+        | Ok table ->
+            // check body refs against current table (only prior defs)
+            match def with
+            | TopFunction fn ->
+                let paramNames = fn.Parameters |> List.map (fun p -> p.Name) |> Set.ofList
+                let bodyRefs = fn.Body |> List.map collectRefs |> Set.unionMany
+                // exclude self-params and the function's own name (recursion not checked here)
+                let externalRefs = bodyRefs - paramNames |> Set.remove fn.Name
+                let (ModulePath parts) = fn.ModulePath
+                // same-module symbols are reachable by short name
+                let tableWithModScope = SymbolTable.addOpen parts table
+                let forwardRef =
+                    externalRefs |> Set.toList |> List.tryFind (fun name ->
+                        SymbolTable.resolveSymbol name tableWithModScope |> Option.isNone)
+                match forwardRef with
+                | Some name ->
+                    let (Line line) = fn.Location.StartLine
+                    let (Column col) = fn.Location.StartCol
+                    Result.Error $"forward reference to undeclared symbol '{name}' in '{fn.Name}' at line {line}, column {col}"
+                | None ->
+                    let fullPath = parts @ [fn.Name]
+                    SymbolTable.addSymbol fullPath fn.Visibility fn.Parameters.Length table
+            | TopStruct structDef ->
+                let (ModulePath parts) = structDef.ModulePath
+                let fullPath = parts @ [structDef.Name]
+                SymbolTable.addSymbol fullPath Visibility.Public 0 table
+    ) (Ok SymbolTable.empty)
+
 /// Resolve qualified names in lowered function bodies using symbol table + opens
-let private resolveNames (symTable: SymbolTable.SymbolTable) (defs: TopLevelDef list) : TopLevelDef list =
+let resolveNames (symTable: SymbolTable.SymbolTable) (defs: TopLevelDef list) : TopLevelDef list =
     let rec resolveExpr (expr: Expression) : Expression =
         match expr with
         | FunctionCallExpression call ->

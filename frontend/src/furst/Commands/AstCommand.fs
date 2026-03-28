@@ -44,6 +44,8 @@ let rec printExpr (indent: int) (expr: Expression) =
         printfn "%smod %s" pad (String.Join(".", parts))
         for bodyExpr in body do
             printExpr (indent + 2) bodyExpr
+    | LibDeclaration parts ->
+        printfn "%slib %s" pad (String.Join(".", parts))
     | OpenDeclaration parts ->
         printfn "%sopen %s" pad (String.Join(".", parts))
 

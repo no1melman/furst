@@ -2,6 +2,8 @@ module Furst.Tests.SymbolTableTests
 
 open Xunit
 open Types
+open Ast
+open Lowered
 
 [<Fact>]
 let ``addSymbol and resolveSymbol works for simple name`` () =
@@ -37,3 +39,62 @@ let ``duplicate symbol returns error`` () =
     match result with
     | Ok _ -> Assert.Fail("Expected duplicate error")
     | Error message -> Assert.Contains("duplicate", message)
+
+let private dummyLoc : SourceLocation = {
+    StartLine = Line 1L; StartCol = Column 1L
+    EndLine = Line 1L; EndCol = Column 10L
+}
+
+let private mkFn name modPath paramNames bodyExprs : TopLevelDef =
+    TopFunction {
+        Name = name
+        ReturnType = Inferred
+        Parameters = paramNames |> List.map (fun n -> { Name = n; Type = I32 })
+        Body = bodyExprs
+        Location = dummyLoc
+        ModulePath = ModulePath modPath
+        Visibility = Public
+    }
+
+[<Fact>]
+let ``Forward reference is rejected`` () =
+    // bar calls foo, but foo is declared after bar
+    let defs = [
+        mkFn "bar" ["Test"] [] [FunctionCallExpression { FunctionName = "foo"; Arguments = [] }]
+        mkFn "foo" ["Test"] [] [LiteralExpression (IntLiteral 1)]
+    ]
+    match Pipeline.checkForwardReferences defs with
+    | Ok _ -> Assert.Fail("Expected forward reference error")
+    | Error msg -> Assert.Contains("forward reference", msg)
+
+[<Fact>]
+let ``Valid declaration order succeeds`` () =
+    // foo declared first, bar calls foo — valid
+    let defs = [
+        mkFn "foo" ["Test"] [] [LiteralExpression (IntLiteral 1)]
+        mkFn "bar" ["Test"] [] [FunctionCallExpression { FunctionName = "foo"; Arguments = [] }]
+    ]
+    match Pipeline.checkForwardReferences defs with
+    | Ok table -> Assert.True(table.Symbols.Count = 2)
+    | Error msg -> Assert.Fail($"Unexpected error: {msg}")
+
+[<Fact>]
+let ``Function can reference its own parameters`` () =
+    let defs = [
+        mkFn "add" ["Test"] ["x"; "y"] [
+            OperatorExpression { Left = IdentifierExpression "x"; Operator = Add; Right = IdentifierExpression "y" }
+        ]
+    ]
+    match Pipeline.checkForwardReferences defs with
+    | Ok _ -> ()
+    | Error msg -> Assert.Fail($"Unexpected error: {msg}")
+
+[<Fact>]
+let ``Duplicate symbol is rejected`` () =
+    let defs = [
+        mkFn "foo" ["Test"] [] [LiteralExpression (IntLiteral 1)]
+        mkFn "foo" ["Test"] [] [LiteralExpression (IntLiteral 2)]
+    ]
+    match Pipeline.checkForwardReferences defs with
+    | Ok _ -> Assert.Fail("Expected duplicate error")
+    | Error msg -> Assert.Contains("duplicate", msg)

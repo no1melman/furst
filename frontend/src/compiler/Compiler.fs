@@ -28,7 +28,7 @@ let formatError (source: string) (error: CompileError) =
         let carets = System.String(' ', int col) + System.String('^', max 1 len)
         eprintfn "  | %s" carets
 
-let deriveModulePath (filePath: string) : ModulePath =
+let deriveModulePath (libRoot: string option) (filePath: string) : ModulePath =
     let normalized = filePath.Replace('\\', '/')
     let stripped =
         match normalized.IndexOf("src/") with
@@ -38,12 +38,18 @@ let deriveModulePath (filePath: string) : ModulePath =
         let dir = Path.GetDirectoryName(stripped)
         if String.IsNullOrEmpty(dir) then name
         else dir.Replace('\\', '/') + "/" + name
-    let parts =
+    let fileParts =
         noExt.Split('/')
         |> Array.filter (fun s -> s <> "")
         |> Array.map (fun s -> string (Char.ToUpper s.[0]) + s.[1..])
         |> Array.toList
-    ModulePath parts
+    let allParts =
+        match libRoot with
+        | Some root ->
+            let libParts = root.Split('.') |> Array.toList
+            libParts @ fileParts
+        | None -> fileParts
+    ModulePath allParts
 
 let parseFile (filePath: string) : Result<ExpressionNode list * string, string> =
     match readFile filePath with
@@ -69,6 +75,16 @@ let lowerFileNodes (baseModulePath: ModulePath) (nodes: ExpressionNode list) : L
 
     for node in nodes do
         match node.Expr with
+        | LibDeclaration parts ->
+            // lib overrides the lib prefix — rebuild module path with new lib root
+            if not currentGroup.IsEmpty then
+                let lowered = Pipeline.lower currentPath (List.rev currentGroup)
+                allLowered <- allLowered @ lowered
+                currentGroup <- []
+            let (ModulePath currentParts) = baseModulePath
+            // Replace lib prefix: keep only the mod-level parts (last component of base path)
+            let modPart = currentParts |> List.tryLast |> Option.toList
+            currentPath <- ModulePath (parts @ modPart)
         | ModuleDeclaration (parts, []) ->
             if not currentGroup.IsEmpty then
                 let lowered = Pipeline.lower currentPath (List.rev currentGroup)
@@ -94,7 +110,7 @@ let lowerFileNodes (baseModulePath: ModulePath) (nodes: ExpressionNode list) : L
 
     allLowered
 
-let compileFiles (files: string list) : Result<Lowered.TopLevelDef list, string> =
+let compileFiles (libRoot: string option) (files: string list) : Result<Lowered.TopLevelDef list, string> =
     let indexMap = files |> List.mapi (fun i f -> (f, i)) |> Map.ofList
     let results = ConcurrentDictionary<int, Lowered.TopLevelDef list>()
     let errors = ConcurrentBag<string>()
@@ -103,7 +119,7 @@ let compileFiles (files: string list) : Result<Lowered.TopLevelDef list, string>
         match parseFile file with
         | Result.Error error -> errors.Add(error)
         | Ok (nodes, _source) ->
-            let modulePath = deriveModulePath file
+            let modulePath = deriveModulePath libRoot file
             let lowered = lowerFileNodes modulePath nodes
             results.[indexMap.[file]] <- lowered
     ) |> ignore
@@ -114,4 +130,8 @@ let compileFiles (files: string list) : Result<Lowered.TopLevelDef list, string>
         let ordered =
             [0 .. files.Length - 1]
             |> List.collect (fun i -> results.[i])
-        Result.Ok ordered
+        match Pipeline.checkForwardReferences ordered with
+        | Result.Error error -> Result.Error error
+        | Ok symTable ->
+            let resolved = Pipeline.resolveNames symTable ordered
+            Result.Ok resolved

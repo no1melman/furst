@@ -16,7 +16,7 @@ let main argv =
     let args = argv |> Array.toList
     match args with
     | "-o" :: outputPath :: files when not files.IsEmpty ->
-        match Compiler.compileFiles files with
+        match Compiler.compileFiles None files with
         | Result.Error error -> eprintfn "%s" error; 1
         | Ok allLowered ->
             let sourceFile = files.Head

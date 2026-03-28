@@ -95,6 +95,7 @@ let liftLambdas (modulePath: ModulePath) (nodes: ExpressionNode list) : TopLevel
             | LiteralExpression _ -> acc
             | StructExpression _ -> acc
             | ModuleDeclaration _ -> acc
+            | LibDeclaration _ -> acc
             | OpenDeclaration _ -> acc
         ) Set.empty
 
@@ -136,7 +137,7 @@ let liftLambdas (modulePath: ModulePath) (nodes: ExpressionNode list) : TopLevel
                     ModulePath = modulePath
                     Visibility = Visibility.Public
                 } ]
-            | ModuleDeclaration _ | OpenDeclaration _ ->
+            | ModuleDeclaration _ | LibDeclaration _ | OpenDeclaration _ ->
                 [] // declarations don't produce lowered defs
             | other ->
                 // top-level expression -> wrap in anonymous

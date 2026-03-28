@@ -102,6 +102,10 @@ let rec private mapExpr (expr: Expression) : Furst.Expression =
         protoExpr.Identifier <- "<error:unlowered-mod>"
         protoExpr.ResolvedType <- mapType Inferred
 
+    | LibDeclaration _ ->
+        protoExpr.Identifier <- "<error:unlowered-lib>"
+        protoExpr.ResolvedType <- mapType Inferred
+
     | OpenDeclaration _ ->
         protoExpr.Identifier <- "<error:unlowered-open>"
         protoExpr.ResolvedType <- mapType Inferred
