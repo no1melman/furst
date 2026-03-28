@@ -344,11 +344,28 @@ and extractParameters (tokens: Tokens list) : ParameterExpression list =
     loop [] tokens
 
 and buildStructDefinition (name: string) (row: Row) : Result<ExpressionNode, CompileError> =
-    // TODO: parse fields from row.Body
-    let line, col, len = getFirstTokenPos row
-    Result.Error {
-        Message = "Struct definitions not yet implemented"
-        Line = line
-        Column = col
-        Length = len
-    }
+    // Tokens after Struct and Name are: OpenBrace, (Name TypeIdentifier TypeDefinition)*, ClosedBrace
+    let tokens = row.Expressions |> List.map _.Token
+    // Skip Struct, Name, OpenBrace — take field tokens until ClosedBrace
+    let fieldTokens =
+        tokens
+        |> List.skip 3 // Struct, Name, OpenBrace
+        |> List.takeWhile (fun t -> t <> ClosedBrace)
+
+    let rec parseFields acc remaining =
+        match remaining with
+        | [] -> Result.Ok (List.rev acc)
+        | Name (Word fieldName) :: TypeIdentifier :: TypeDefinition typeDef :: rest ->
+            parseFields ((fieldName, typeDef) :: acc) rest
+        | bad :: _ ->
+            let tok = row.Expressions |> List.find (fun t -> t.Token = bad)
+            Result.Error (tokenError $"Unexpected token in struct field definition: {bad}" tok)
+
+    match parseFields [] fieldTokens with
+    | Ok fields ->
+        let loc = rowLocation row
+        Result.Ok {
+            Expr = StructExpression { Name = name; Fields = fields }
+            Location = loc
+        }
+    | Error e -> Result.Error e

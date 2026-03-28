@@ -10,32 +10,43 @@
     flake-utils.lib.eachDefaultSystem (system:
       let
         pkgs = import nixpkgs { inherit system; };
+
+        # Pinned package versions
+        dotnet    = pkgs.dotnet-sdk_10;
+        clang     = pkgs.clang_20;
+        llvm      = pkgs.llvmPackages_20.llvm;
+        libclang  = pkgs.llvmPackages_20.libclang;
+
+        # Shared package sets
+        frontendPkgs = [
+          dotnet
+          pkgs.protobuf
+        ];
+        backendPkgs = [
+          clang
+          llvm
+          libclang
+          dotnet
+        ] ++ (with pkgs; [
+          cmake
+          ninja
+          protobuf
+          abseil-cpp
+          gtest
+          clang-tools
+          ccache
+        ]);
       in
       {
         devShells = {
           frontend = pkgs.mkShell {
             name = "furst-frontend";
-            packages = with pkgs; [
-              dotnet-sdk_9
-              protobuf
-            ];
+            packages = frontendPkgs;
           };
 
           backend = pkgs.mkShell {
             name = "furst-backend";
-            packages = with pkgs; [
-              clang_18
-              cmake
-              ninja
-              protobuf
-              abseil-cpp
-              gtest
-              llvmPackages_18.llvm
-              llvmPackages_18.libclang
-              clang-tools
-              ccache
-              dotnet-sdk_9
-            ];
+            packages = backendPkgs;
 
             shellHook = ''
               export CC=clang
@@ -87,21 +98,7 @@
           # Default shell has everything
           default = pkgs.mkShell {
             name = "furst";
-            packages = with pkgs; [
-              # Frontend
-              dotnet-sdk_9
-              # Backend
-              clang_18
-              cmake
-              ninja
-              protobuf
-              abseil-cpp
-              gtest
-              llvmPackages_18.llvm
-              llvmPackages_18.libclang
-              clang-tools
-              ccache
-            ];
+            packages = frontendPkgs ++ backendPkgs;
 
             shellHook = ''
               export CC=clang

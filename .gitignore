@@ -13,3 +13,7 @@ CMakeFiles/
 examples/hello
 examples/add
 examples/nested
+
+# Coverage — keep report dir, ignore raw data
+frontend/coverage/**
+!frontend/coverage/report/

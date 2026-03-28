@@ -148,16 +148,73 @@ let ``Function call with parenthesized expression argument`` () =
             | _ -> Assert.Fail("Expected FunctionCallExpression")
 
 [<Fact>]
-let ``Struct definition should return not-yet-implemented error`` () =
-    let source = "struct Foo {}"
+let ``Empty struct should parse`` () =
+    let source = """
+struct Foo {
+}
+"""
 
     match createAST "test" source with
     | Error e -> Assert.Fail($"Parse failed: {e}")
     | Ok rows ->
         match rowToExpression rows.Head with
-        | Error err ->
-            Assert.Contains("not yet implemented", err.Message)
-        | Ok _ -> Assert.Fail("Expected error for struct definition")
+        | Error e -> Assert.Fail($"AST build failed: {e.Message}")
+        | Ok exprNode ->
+            match exprNode.Expr with
+            | StructExpression s ->
+                Assert.Equal("Foo", s.Name)
+                Assert.Empty(s.Fields)
+            | _ -> Assert.Fail("Expected StructExpression")
+
+[<Fact>]
+let ``Struct with single field should parse`` () =
+    let source = """
+struct Point {
+  x: i32
+}
+"""
+
+    match createAST "test" source with
+    | Error e -> Assert.Fail($"Parse failed: {e}")
+    | Ok rows ->
+        match rowToExpression rows.Head with
+        | Error e -> Assert.Fail($"AST build failed: {e.Message}")
+        | Ok exprNode ->
+            match exprNode.Expr with
+            | StructExpression s ->
+                Assert.Equal("Point", s.Name)
+                Assert.Equal(1, s.Fields.Length)
+                let (name, typeDef) = s.Fields.[0]
+                Assert.Equal("x", name)
+                Assert.Equal(I32, typeDef)
+            | _ -> Assert.Fail("Expected StructExpression")
+
+[<Fact>]
+let ``Struct with multiple fields should parse`` () =
+    let source = """
+struct Point {
+  x: i32
+  y: i32
+  z: float
+}
+"""
+
+    match createAST "test" source with
+    | Error e -> Assert.Fail($"Parse failed: {e}")
+    | Ok rows ->
+        match rowToExpression rows.Head with
+        | Error e -> Assert.Fail($"AST build failed: {e.Message}")
+        | Ok exprNode ->
+            match exprNode.Expr with
+            | StructExpression s ->
+                Assert.Equal("Point", s.Name)
+                Assert.Equal(3, s.Fields.Length)
+                Assert.Equal("x", fst s.Fields.[0])
+                Assert.Equal(I32, snd s.Fields.[0])
+                Assert.Equal("y", fst s.Fields.[1])
+                Assert.Equal("z", fst s.Fields.[2])
+                Assert.Equal(Float, snd s.Fields.[2])
+            | _ -> Assert.Fail("Expected StructExpression")
 
 [<Fact>]
 let ``Qualified function call should parse`` () =

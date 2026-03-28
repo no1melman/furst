@@ -1,6 +1,20 @@
 # Epics
 
 > **Rule:** Mark a feature `[x]` only after the user confirms they're happy with it. Never auto-check.
+> **Rule:** Ensure after a task is checked off the relevant ADR coverage table is updated as well.
+
+## ADR Coverage
+
+| ADR | Title | Status | Covered by | % Done |
+|-----|-------|--------|-----------|--------|
+| 0001 | Symbol tracking | Proposed | 5b.7, 5b.8, 5b.10 | 0% |
+| 0002 | Type system & inference | Proposed | 6.1–6.3, 6.11–6.13, 11.1 | 0% |
+| 0003 | Async/green threads | Proposed | 12.1 | 0% |
+| 0004 | Memory ownership | Proposed | 8.1 | 0% |
+| 0005 | Resource management | Proposed | 9.1 | 0% |
+| 0006 | Allocation strategy | Proposed | 8.1 | 0% |
+| 0007 | String/collection types | Proposed | 10.1 | 0% |
+| 0008 | Module system | Accepted | 5b.1–5b.16 | 0% |
 
 ## Epic 1: Build Infrastructure
 
@@ -54,7 +68,10 @@
 
 ## Epic 5b: Module System
 
-> ADR: [ADR-0008](docs/adr/ADR-0008-module-system.md) | Discussion: [modules-namespaces-bcl](docs/discussions/modules-namespaces-bcl.md)
+> ADR: [ADR-0008](docs/adr/ADR-0008-module-system.md), [ADR-0001](docs/adr/ADR-0001-symbol-tracking.md) | Discussion: [modules-namespaces-bcl](docs/discussions/modules-namespaces-bcl.md)
+>
+> ADR-0001 (symbol tracking) is implemented by the scoped symbol table (5b.7–5b.10) — two-pass collection + validation approach.
+> ADR-0008 (module system) is the primary driver for all tasks in this epic.
 
 - [ ] 5b.1 `mod` keyword parsing — parse `mod Name` blocks with indentation-scoped body, dotted names (e.g. `mod Api.Types`) build hierarchy structurally
 - [ ] 5b.2 Implicit mod from filesystem — filename becomes mod name, directories extend lib path (e.g. `src/collections/list.fu` with yaml root `Furst` → lib `Furst.Collections`, mod `List`)
@@ -80,6 +97,10 @@ Deferred:
 
 ## Epic 6: Type System & Operators as Functions
 
+> ADR: [ADR-0002](docs/adr/ADR-0002-type-system.md) (phases 1–4: primitives, inference, unification, typed AST)
+>
+> ADR-0002 phases 5–7 (sum types, pattern matching, generics) deferred to Epic 11.
+
 - [ ] 6.1 Hindley-Milner type inference — Algorithm W in the frontend, infer types for all expressions
 - [ ] 6.2 Type unification — unify type variables, detect mismatches, produce clear errors with source locations
 - [ ] 6.3 Typed AST — replace `Inferred` with concrete types after inference, flow through to .fso
@@ -90,7 +111,11 @@ Deferred:
 - [ ] 6.8 Precedence and associativity — builtin precedence table, user operators default to lowest precedence
 - [ ] 6.9 Backend type-aware codegen — emit `fadd`/`fsub` for floats, `add`/`sub` for ints based on inferred types
 - [ ] 6.10 Type errors in backend — reject type mismatches with source locations from .fso
-- [ ] 6.11 Tests — type inference roundtrips, operator desugaring, mixed-type errors
+- [ ] 6.11 Struct type registration — register struct types in type environment, fields as typed records
+- [ ] 6.12 Struct construction expression — `Point { x = 1, y = 2 }` syntax, type-checked against definition
+- [ ] 6.13 Field access expression — `p.x` syntax, resolves to field index + type
+- [ ] 6.14 Backend struct codegen — bare minimum: LLVM named struct types, stack alloca, GEP for construction and field access. No heap/arena — just enough to prove structs work before memory model ADR
+- [ ] 6.15 Tests — type inference roundtrips, operator desugaring, mixed-type errors, struct construction and field access
 
 Unresolved questions:
 - prelude module for builtins or hardcoded in compiler?
@@ -113,6 +138,63 @@ Unresolved questions:
 - keyword for implementing? (impl, extend, for, ...)
 - should contracts support default implementations?
 - associated types?
+
+## Epic 8: Memory Model & Allocation
+
+> ADR: [ADR-0004](docs/adr/ADR-0004-memory-ownership.md), [ADR-0006](docs/adr/ADR-0006-allocation-strategy.md)
+>
+> ADR-0004 defines immutable-first ownership, refcounting, reuse analysis, Ptr<T>, Slice<T>.
+> ADR-0006 defines stack-first placement, heap promotion, arena allocators, struct layout.
+> Both depend on a working type system (Epic 6) — the compiler needs concrete types to decide placement.
+> Epic 6.14 (struct codegen) deliberately stops at stack alloca; this epic picks up from there.
+
+- [ ] 8.1 Refine tasks from ADR-0004 and ADR-0006 — break down ownership semantics, allocation strategy, reuse analysis, Ptr<T>/Slice<T> into implementable tasks
+
+## Epic 9: Resource Management
+
+> ADR: [ADR-0005](docs/adr/ADR-0005-resource-management.md)
+>
+> ADR-0005 defines Drop trait, `use` binding, auto-generated drop for structs, loan pattern.
+> Depends on Epic 8 (memory model) — Drop triggers on refcount zero, needs ownership semantics in place.
+> Depends on Epic 7 (type contracts) — Drop is itself a contract/trait.
+
+- [ ] 9.1 Refine tasks from ADR-0005 — break down Drop trait, `use` binding, auto-drop generation, loan pattern into implementable tasks
+
+## Epic 10: Strings & Collection Types
+
+> ADR: [ADR-0007](docs/adr/ADR-0007-string-collection-types.md)
+>
+> ADR-0007 defines String (UTF-8, SSO), fixed arrays, List<T>, Slice<T>, no implicit coercion.
+> Depends on Epic 8 (memory model) — SSO and growable buffers need allocation strategy.
+> Depends on Epic 6 (type system) — generic types like List<T> need type parameters.
+
+- [ ] 10.1 Refine tasks from ADR-0007 — break down String type, SSO, fixed arrays, List<T>, Slice<T>, explicit conversions into implementable tasks
+
+## Epic 11: Algebraic Types & Pattern Matching
+
+> ADR: [ADR-0002](docs/adr/ADR-0002-type-system.md) (phases 5–7: sum types, discriminated unions, pattern matching)
+>
+> ADR-0002 phases 5–7 cover sum types (`type Option<T> = Some T | None`), tuples, and pattern matching.
+> Deferred from Epic 6 because sum types need the memory model (Epic 8) to decide tag+payload layout,
+> and pattern matching benefits from having strings and collections (Epic 10) to match against.
+
+- [ ] 11.1 Refine tasks from ADR-0002 phases 5–7 — break down sum types, tuples, discriminated unions, pattern matching, exhaustiveness checking into implementable tasks
+
+## Epic 12: Async Runtime & Green Threads
+
+> ADR: [ADR-0003](docs/adr/ADR-0003-async-task-scheduler.md)
+>
+> ADR-0003 defines M:N green thread scheduler, spawn keyword, yield points, user-space stacks, I/O integration.
+> Most independent epic — no hard dependency on type system or memory model, but benefits from both.
+> Placed last because the language is usable without async; the runtime is a large standalone effort.
+
+- [ ] 12.1 Refine tasks from ADR-0003 — break down runtime library, scheduler, spawn keyword, yield insertion, context switching, I/O integration into implementable tasks
+
+## Future Features (to discuss)
+
+- **User-defined infix operators** — `let (|>) = pipeForward` pattern, pipe-forward as stdlib not syntax
+- **Match expressions** — pattern matching on values, destructuring
+- **String literals** — parsing, type inference, emit
 
 ## Project Structure Convention
 

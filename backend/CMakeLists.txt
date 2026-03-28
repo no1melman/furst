@@ -51,6 +51,7 @@ llvm_map_components_to_libnames(LLVM_LIBS
 # --- Proto codegen ---
 set(PROTO_SRC_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../proto")
 protobuf_generate_cpp(PROTO_SRCS PROTO_HDRS "${PROTO_SRC_DIR}/furst_ast.proto")
+set_source_files_properties(${PROTO_SRCS} PROPERTIES COMPILE_FLAGS "-Wno-error")
 
 # --- Backend library (shared between exe and tests) ---
 add_library(furst_backend STATIC
