@@ -253,11 +253,15 @@ Result<EmittedModule, CompileError> emit_module(const ast::FurstModule& module,
         const auto& fn = std::get<ast::FunctionDef>(def);
         if (fn.name != "main" && !fn.module_path.empty()) {
             auto mangled = std::string{};
+            auto dotted = std::string{};
             for (const auto& part : fn.module_path) {
                 mangled += part + "__";
+                dotted += part + ".";
             }
             mangled += fn.name;
+            dotted += fn.name;
             name_map[fn.name] = mangled;
+            name_map[dotted] = mangled;
         }
     }
 
