@@ -179,6 +179,37 @@ TEST(Emitter, ZeroParamFunctionHasNoArgs) {
     EXPECT_TRUE(result.ir.find("define i32 @x()") != std::string::npos) << result.ir;
 }
 
+// -- Module path mangling --
+
+TEST(Emitter, ModulePathManglesName) {
+    auto result = furst::compile("tests/fixtures/module_path.fso", {});
+    ASSERT_TRUE(result.success) << result.error_message;
+    // Math.add → Math__add in LLVM IR
+    EXPECT_TRUE(result.ir.find("define i32 @Math__add") != std::string::npos)
+        << "expected mangled name Math__add\n" << result.ir;
+}
+
+TEST(Emitter, PrivateFunctionHasInternalLinkage) {
+    auto result = furst::compile("tests/fixtures/module_path.fso", {});
+    ASSERT_TRUE(result.success) << result.error_message;
+    // private let helper → internal linkage
+    EXPECT_TRUE(result.ir.find("define internal i32 @Math__helper") != std::string::npos)
+        << "expected internal linkage for private function\n" << result.ir;
+}
+
+TEST(Emitter, PublicFunctionHasExternalLinkage) {
+    auto result = furst::compile("tests/fixtures/module_path.fso", {});
+    ASSERT_TRUE(result.success) << result.error_message;
+    // public add → external linkage (no 'internal' keyword)
+    auto pos = result.ir.find("define i32 @Math__add");
+    ASSERT_TRUE(pos != std::string::npos) << result.ir;
+    // 'define i32' not 'define internal i32' means external linkage
+    auto line_start = result.ir.rfind('\n', pos);
+    auto line = result.ir.substr(line_start + 1, pos - line_start - 1);
+    EXPECT_TRUE(line.find("internal") == std::string::npos)
+        << "public function should not have internal linkage\n" << result.ir;
+}
+
 TEST(Emitter, FunctionBodyReturnsLastExpression) {
     auto result = furst::compile("tests/fixtures/let_binding.fso", {});
     ASSERT_TRUE(result.success) << result.error_message;

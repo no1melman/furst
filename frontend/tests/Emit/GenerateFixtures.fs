@@ -10,7 +10,7 @@ open Lowered
 let private fixtureDir =
     Path.Combine(__SOURCE_DIRECTORY__, "..", "..", "backend", "tests", "fixtures")
 
-let private lower (source: string) =
+let private lowerWithPath (modPath: string list) (source: string) =
     let fileName = "test.fu"
     match Lexer.createAST fileName source with
     | Error e -> failwith $"Parse error: {e}"
@@ -21,7 +21,9 @@ let private lower (source: string) =
             let msg = System.String.Join("; ", errors)
             failwith $"AST errors: {msg}"
         let nodes = results |> List.choose (function Ok n -> Some n | _ -> None)
-        Pipeline.lower (Types.ModulePath []) nodes
+        Pipeline.lower (Types.ModulePath modPath) nodes
+
+let private lower (source: string) = lowerWithPath [] source
 
 let private writeFixture (name: string) (source: string) =
     Directory.CreateDirectory(fixtureDir) |> ignore
@@ -114,4 +116,20 @@ let compute a =
 
 let main n =
   compute n
+"""
+
+let private writeFixtureWithPath (name: string) (modPath: string list) (source: string) =
+    Directory.CreateDirectory(fixtureDir) |> ignore
+    let outputPath = Path.Combine(fixtureDir, name + ".fso")
+    let defs = lowerWithPath modPath source
+    FsoWriter.writeFso outputPath (name + ".fu") defs
+
+[<Fact>]
+let ``Generate fixture: module_path`` () =
+    writeFixtureWithPath "module_path" ["Math"] """
+let add x y =
+  x + y
+
+private let helper x =
+  x + 1
 """
