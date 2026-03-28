@@ -3,14 +3,15 @@ module LetBindingTests
 open Xunit
 open Types
 open Ast
-open AstBuilder
+open RowParser
+open TokenCombinators
 open Lexer
 
 [<Fact>]
 let ``Simple variable binding should parse to AST`` () =
     let source = "let x = 5"
 
-    let astResult = createAST "test" source
+    let astResult = tokenise "test" source
 
     match astResult with
     | Error e -> Assert.Fail($"Failed to parse: {e}")
@@ -18,10 +19,10 @@ let ``Simple variable binding should parse to AST`` () =
         Assert.Single(rows) |> ignore
 
         let row = rows.Head
-        match rowToExpression row with
+        match parseRow row emptyState with
         | Error e ->
             Assert.Fail($"Failed to build AST: {e.Message} at {e.Line}:{e.Column}")
-        | Ok exprNode ->
+        | Ok (exprNode, _) ->
             match exprNode.Expr with
             | LetBindingExpression binding ->
                 Assert.Equal("x", binding.Name)
@@ -35,12 +36,12 @@ let ``Simple variable binding should parse to AST`` () =
 let ``Variable binding with identifier should parse to AST`` () =
     let source = "let x = y"
 
-    match createAST "test" source with
+    match tokenise "test" source with
     | Error e -> Assert.Fail($"Parse failed: {e}")
     | Ok rows ->
-        match rowToExpression rows.Head with
+        match parseRow rows.Head emptyState with
         | Error e -> Assert.Fail($"AST build failed: {e.Message}")
-        | Ok exprNode ->
+        | Ok (exprNode, _) ->
             match exprNode.Expr with
             | LetBindingExpression binding ->
                 Assert.Equal("x", binding.Name)
@@ -53,12 +54,12 @@ let ``Variable binding with identifier should parse to AST`` () =
 let ``Variable binding with binary op should parse to AST`` () =
     let source = "let result = a + b"
 
-    match createAST "test" source with
+    match tokenise "test" source with
     | Error e -> Assert.Fail($"Parse failed: {e}")
     | Ok rows ->
-        match rowToExpression rows.Head with
+        match parseRow rows.Head emptyState with
         | Error e -> Assert.Fail($"AST build failed: {e.Message}")
-        | Ok exprNode ->
+        | Ok (exprNode, _) ->
             match exprNode.Expr with
             | LetBindingExpression binding ->
                 Assert.Equal("result", binding.Name)
@@ -78,10 +79,10 @@ let ``Variable binding with binary op should parse to AST`` () =
 let ``Empty let binding should return error`` () =
     let source = "let x ="
 
-    match createAST "test" source with
+    match tokenise "test" source with
     | Error _ -> () // Parser might fail, that's ok
     | Ok rows ->
-        match rowToExpression rows.Head with
+        match parseRow rows.Head emptyState with
         | Error err ->
             Assert.Contains("Expected value after '='", err.Message)
         | Ok _ -> Assert.Fail("Should have failed with empty binding")
@@ -90,12 +91,12 @@ let ``Empty let binding should return error`` () =
 let ``Float literal should parse to AST`` () =
     let source = "let x = 3.14"
 
-    match createAST "test" source with
+    match tokenise "test" source with
     | Error e -> Assert.Fail($"Parse failed: {e}")
     | Ok rows ->
-        match rowToExpression rows.Head with
+        match parseRow rows.Head emptyState with
         | Error e -> Assert.Fail($"AST build failed: {e.Message}")
-        | Ok exprNode ->
+        | Ok (exprNode, _) ->
             match exprNode.Expr with
             | LetBindingExpression binding ->
                 match binding.Value with
@@ -108,12 +109,12 @@ let ``Float literal should parse to AST`` () =
 let ``Binding with function call value should parse`` () =
     let source = "let x = f a"
 
-    match createAST "test" source with
+    match tokenise "test" source with
     | Error e -> Assert.Fail($"Parse failed: {e}")
     | Ok rows ->
-        match rowToExpression rows.Head with
+        match parseRow rows.Head emptyState with
         | Error e -> Assert.Fail($"AST build failed: {e.Message}")
-        | Ok exprNode ->
+        | Ok (exprNode, _) ->
             match exprNode.Expr with
             | LetBindingExpression binding ->
                 Assert.Equal("x", binding.Name)
@@ -131,12 +132,12 @@ let ``Binding with function call value should parse`` () =
 let ``Negative integer literal should parse`` () =
     let source = "let x = -42"
 
-    match createAST "test" source with
+    match tokenise "test" source with
     | Error e -> Assert.Fail($"Parse failed: {e}")
     | Ok rows ->
-        match rowToExpression rows.Head with
+        match parseRow rows.Head emptyState with
         | Error e -> Assert.Fail($"AST build failed: {e.Message}")
-        | Ok exprNode ->
+        | Ok (exprNode, _) ->
             match exprNode.Expr with
             | LetBindingExpression binding ->
                 match binding.Value with
@@ -149,12 +150,12 @@ let ``Negative integer literal should parse`` () =
 let ``Negative integer in binary op should parse`` () =
     let source = "let x = a + -1"
 
-    match createAST "test" source with
+    match tokenise "test" source with
     | Error e -> Assert.Fail($"Parse failed: {e}")
     | Ok rows ->
-        match rowToExpression rows.Head with
+        match parseRow rows.Head emptyState with
         | Error e -> Assert.Fail($"AST build failed: {e.Message}")
-        | Ok exprNode ->
+        | Ok (exprNode, _) ->
             match exprNode.Expr with
             | LetBindingExpression binding ->
                 match binding.Value with
@@ -170,12 +171,12 @@ let ``Negative integer in binary op should parse`` () =
 let ``f -1 parses as subtraction not function call (same as F#)`` () =
     let source = "let x = f - 1"
 
-    match createAST "test" source with
+    match tokenise "test" source with
     | Error e -> Assert.Fail($"Parse failed: {e}")
     | Ok rows ->
-        match rowToExpression rows.Head with
+        match parseRow rows.Head emptyState with
         | Error e -> Assert.Fail($"AST build failed: {e.Message}")
-        | Ok exprNode ->
+        | Ok (exprNode, _) ->
             match exprNode.Expr with
             | LetBindingExpression binding ->
                 match binding.Value with
@@ -194,12 +195,12 @@ let ``f -1 parses as subtraction not function call (same as F#)`` () =
 let ``Negative literal as function arg requires parens`` () =
     let source = "let x = f (-1)"
 
-    match createAST "test" source with
+    match tokenise "test" source with
     | Error e -> Assert.Fail($"Parse failed: {e}")
     | Ok rows ->
-        match rowToExpression rows.Head with
+        match parseRow rows.Head emptyState with
         | Error e -> Assert.Fail($"AST build failed: {e.Message}")
-        | Ok exprNode ->
+        | Ok (exprNode, _) ->
             match exprNode.Expr with
             | LetBindingExpression binding ->
                 match binding.Value with
@@ -216,12 +217,12 @@ let ``Negative literal as function arg requires parens`` () =
 let ``Negative float literal should parse`` () =
     let source = "let x = -3.14"
 
-    match createAST "test" source with
+    match tokenise "test" source with
     | Error e -> Assert.Fail($"Parse failed: {e}")
     | Ok rows ->
-        match rowToExpression rows.Head with
+        match parseRow rows.Head emptyState with
         | Error e -> Assert.Fail($"AST build failed: {e.Message}")
-        | Ok exprNode ->
+        | Ok (exprNode, _) ->
             match exprNode.Expr with
             | LetBindingExpression binding ->
                 match binding.Value with
@@ -234,11 +235,11 @@ let ``Negative float literal should parse`` () =
 let ``Multiple let bindings in sequence should parse`` () =
     let source = "let x = 1\nlet y = 2"
 
-    match createAST "test" source with
+    match tokenise "test" source with
     | Error e -> Assert.Fail($"Parse failed: {e}")
     | Ok rows ->
         Assert.Equal(2, rows.Length)
-        let results = rows |> List.map rowToExpression
+        let results = rows |> List.map (fun r -> parseRow r emptyState |> Result.map fst)
         let exprs = results |> List.choose (function Ok n -> Some n | _ -> None)
         Assert.Equal(2, exprs.Length)
         match exprs.[0].Expr with
@@ -252,12 +253,12 @@ let ``Multiple let bindings in sequence should parse`` () =
 let ``Binding type is always Inferred (no typed let bindings yet)`` () =
     let source = "let x = 5"
 
-    match createAST "test" source with
+    match tokenise "test" source with
     | Error e -> Assert.Fail($"Parse failed: {e}")
     | Ok rows ->
-        match rowToExpression rows.Head with
+        match parseRow rows.Head emptyState with
         | Error e -> Assert.Fail($"AST build failed: {e.Message}")
-        | Ok exprNode ->
+        | Ok (exprNode, _) ->
             match exprNode.Expr with
             | LetBindingExpression binding ->
                 Assert.Equal(Inferred, binding.Type)
@@ -267,12 +268,12 @@ let ``Binding type is always Inferred (no typed let bindings yet)`` () =
 let ``Typed let binding should parse with explicit type`` () =
     let source = "let x: i32 = 5"
 
-    match createAST "test" source with
+    match tokenise "test" source with
     | Error e -> Assert.Fail($"Parse failed: {e}")
     | Ok rows ->
-        match rowToExpression rows.Head with
+        match parseRow rows.Head emptyState with
         | Error e -> Assert.Fail($"AST build failed: {e.Message}")
-        | Ok exprNode ->
+        | Ok (exprNode, _) ->
             match exprNode.Expr with
             | LetBindingExpression binding ->
                 Assert.Equal("x", binding.Name)

@@ -25,18 +25,6 @@ type SourceLocation = {
 
 type ParameterExpression = { Name: WordToken; Type: TypeDefinitions }
 
-type Expressions =
-  | ParameterExpression
-
-let (|TypedParameterExpressionMatch|ParameterExpressionMatch|Incorrect|) (tokens: TokenWithMetadata list) =
-  match tokens |> List.map _.Token with
-  | [ OpenParen; Name name; TypeIdentifier; TypeDefinition typeDefinition; ClosedParen ] ->
-    TypedParameterExpressionMatch { Name = name; Type = typeDefinition }
-  | [ OpenParen; Parameter p; TypeIdentifier; TypeDefinition typeDefinition; ClosedParen ] ->
-    TypedParameterExpressionMatch { Name = Word p; Type = typeDefinition }
-  | [ Name name ] -> ParameterExpressionMatch { Name = name; Type = Inferred }
-  | _ -> Incorrect
-
 type Operator =
   | Add
   | Subtract
@@ -88,6 +76,7 @@ type BodyExpression = BodyExpression of Expression list
     | IdentifierExpression of string
     | LiteralExpression of LiteralValue
     | StructExpression of StructDefinition
+    | NegateExpression of Expression
     | ModuleDeclaration of string list * Expression list
     | LibDeclaration of string list
     | OpenDeclaration of string list
@@ -97,42 +86,3 @@ type ExpressionNode = {
   Location: SourceLocation
 }
 
-let isParameterListExpression (tokens: TokenWithMetadata list) =
-    let isParameterExpression tokens =
-      match tokens with
-      | TypedParameterExpressionMatch expr -> Some expr
-      | ParameterExpressionMatch expr -> Some expr
-      | Incorrect -> None
-
-    let rec walkList list =
-      match list |> List.map _.Token with
-      | OpenParen :: _ ->
-        let maybeExpr = isParameterExpression list.[0..4]
-        maybeExpr |> Option.bind (fun expr ->
-            let remaining = list.[5..]
-            match remaining with
-            | [] -> Some [ expr ]
-            | _ -> walkList list.[5..]
-          )
-      | Name _ :: _ -> walkList (List.tail list)
-      | Parameter _ :: _ -> walkList (List.tail list)
-      | [] -> Some []
-      | _ -> None
-
-    match tokens with
-    | [] -> false
-    | _ -> walkList tokens |> Option.isSome
-
-let isFunctionDefinition (row: Row) =
-    let tokens = row.Expressions |> List.map _.Token
-    match tokens with
-    | [ Let; Name _; Assignment ] ->
-        not row.Body.IsEmpty
-    | Let :: Name _ :: _ ->
-        let paramsBeforeAssignment = tokens |> List.skip 2 |> List.takeWhile ((<>) Assignment)
-        if paramsBeforeAssignment.IsEmpty then
-            not row.Body.IsEmpty
-        else
-            let paramTokens = row.Expressions |> List.skip 2 |> List.takeWhile (fun t -> t.Token <> Assignment)
-            isParameterListExpression paramTokens
-    | _ -> false

@@ -247,6 +247,10 @@ let rec infer (env: TypeEnv) (expr: Expression) : Result<InferType * Substitutio
         | Ok (valueType, subst) ->
             Result.Ok (valueType, subst)
 
+    // Negation — infer inner, result is same type
+    | NegateExpression inner ->
+        infer env inner
+
     // Function definitions and structs are handled at top level, not here
     | FunctionDefinitionExpression _ -> Result.Ok (freshVar (), emptySubst)
     | StructExpression _ -> Result.Ok (freshVar (), emptySubst)

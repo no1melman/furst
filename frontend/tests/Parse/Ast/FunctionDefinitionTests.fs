@@ -3,7 +3,8 @@ module FunctionDefinitionTests
 open Xunit
 open Types
 open Ast
-open AstBuilder
+open RowParser
+open TokenCombinators
 open Lexer
 
 [<Fact>]
@@ -13,13 +14,13 @@ let add a b =
   a + b
 """
 
-    match createAST "test" source with
+    match tokenise "test" source with
     | Error e -> Assert.Fail($"Parse failed: {e}")
     | Ok rows ->
         Assert.Single(rows) |> ignore
-        match rowToExpression rows.Head with
+        match parseRow rows.Head emptyState with
         | Error e -> Assert.Fail($"AST build failed: {e.Message} at {e.Line}:{e.Column}")
-        | Ok exprNode ->
+        | Ok (exprNode, _) ->
             match exprNode.Expr with
             | FunctionDefinitionExpression (FunctionDefinition func) ->
                 Assert.Equal("add", func.Identifier)
@@ -43,14 +44,14 @@ let outer a =
   inner a
 """
 
-    match createAST "test" source with
+    match tokenise "test" source with
     | Error e -> Assert.Fail($"Parse failed: {e}")
     | Ok rows ->
         Assert.Single(rows) |> ignore
 
-        match rowToExpression rows.Head with
+        match parseRow rows.Head emptyState with
         | Error e -> Assert.Fail($"AST build failed: {e.Message} at {e.Line}:{e.Column}")
-        | Ok exprNode ->
+        | Ok (exprNode, _) ->
             match exprNode.Expr with
             | FunctionDefinitionExpression (FunctionDefinition outerFunc) ->
                 Assert.Equal("outer", outerFunc.Identifier)
@@ -93,12 +94,12 @@ let x b =
   5 + b
 """
 
-    match createAST "test" source with
+    match tokenise "test" source with
     | Error e -> Assert.Fail($"Parse failed: {e}")
     | Ok rows ->
-        match rowToExpression rows.Head with
+        match parseRow rows.Head emptyState with
         | Error e -> Assert.Fail($"AST build failed: {e.Message}")
-        | Ok exprNode ->
+        | Ok (exprNode, _) ->
             match exprNode.Expr with
             | FunctionDefinitionExpression (FunctionDefinition func) ->
                 Assert.Equal("x", func.Identifier)
@@ -125,12 +126,12 @@ let f a =
   a + 1
 """
 
-    match createAST "test" source with
+    match tokenise "test" source with
     | Error e -> Assert.Fail($"Parse failed: {e}")
     | Ok rows ->
-        match rowToExpression rows.Head with
+        match parseRow rows.Head emptyState with
         | Error e -> Assert.Fail($"AST build failed: {e.Message}")
-        | Ok exprNode ->
+        | Ok (exprNode, _) ->
             match exprNode.Expr with
             | FunctionDefinitionExpression (FunctionDefinition func) ->
                 Assert.Equal("f", func.Identifier)
@@ -147,12 +148,12 @@ let f (a: i32) =
   a + 1
 """
 
-    match createAST "test" source with
+    match tokenise "test" source with
     | Error e -> Assert.Fail($"Parse failed: {e}")
     | Ok rows ->
-        match rowToExpression rows.Head with
+        match parseRow rows.Head emptyState with
         | Error e -> Assert.Fail($"AST build failed: {e.Message}")
-        | Ok exprNode ->
+        | Ok (exprNode, _) ->
             match exprNode.Expr with
             | FunctionDefinitionExpression (FunctionDefinition func) ->
                 Assert.Equal("f", func.Identifier)
@@ -169,12 +170,12 @@ let add (a: i32) (b: i32) =
   a + b
 """
 
-    match createAST "test" source with
+    match tokenise "test" source with
     | Error e -> Assert.Fail($"Parse failed: {e}")
     | Ok rows ->
-        match rowToExpression rows.Head with
+        match parseRow rows.Head emptyState with
         | Error e -> Assert.Fail($"AST build failed: {e.Message}")
-        | Ok exprNode ->
+        | Ok (exprNode, _) ->
             match exprNode.Expr with
             | FunctionDefinitionExpression (FunctionDefinition func) ->
                 Assert.Equal("add", func.Identifier)
@@ -192,12 +193,12 @@ let add a (b: i32) =
   a + b
 """
 
-    match createAST "test" source with
+    match tokenise "test" source with
     | Error e -> Assert.Fail($"Parse failed: {e}")
     | Ok rows ->
-        match rowToExpression rows.Head with
+        match parseRow rows.Head emptyState with
         | Error e -> Assert.Fail($"AST build failed: {e.Message}")
-        | Ok exprNode ->
+        | Ok (exprNode, _) ->
             match exprNode.Expr with
             | FunctionDefinitionExpression (FunctionDefinition func) ->
                 Assert.Equal(2, func.Parameters.Length)
@@ -214,12 +215,12 @@ let add (a: i32) b =
   a + b
 """
 
-    match createAST "test" source with
+    match tokenise "test" source with
     | Error e -> Assert.Fail($"Parse failed: {e}")
     | Ok rows ->
-        match rowToExpression rows.Head with
+        match parseRow rows.Head emptyState with
         | Error e -> Assert.Fail($"AST build failed: {e.Message}")
-        | Ok exprNode ->
+        | Ok (exprNode, _) ->
             match exprNode.Expr with
             | FunctionDefinitionExpression (FunctionDefinition func) ->
                 Assert.Equal(2, func.Parameters.Length)
@@ -236,12 +237,12 @@ let add (a: i32) (b: i32) : i32 =
   a + b
 """
 
-    match createAST "test" source with
+    match tokenise "test" source with
     | Error e -> Assert.Fail($"Parse failed: {e}")
     | Ok rows ->
-        match rowToExpression rows.Head with
+        match parseRow rows.Head emptyState with
         | Error e -> Assert.Fail($"AST build failed: {e.Message}")
-        | Ok exprNode ->
+        | Ok (exprNode, _) ->
             match exprNode.Expr with
             | FunctionDefinitionExpression (FunctionDefinition func) ->
                 Assert.Equal("add", func.Identifier)
@@ -257,12 +258,12 @@ let f a =
   a + x
 """
 
-    match createAST "test" source with
+    match tokenise "test" source with
     | Error e -> Assert.Fail($"Parse failed: {e}")
     | Ok rows ->
-        match rowToExpression rows.Head with
+        match parseRow rows.Head emptyState with
         | Error e -> Assert.Fail($"AST build failed: {e.Message}")
-        | Ok exprNode ->
+        | Ok (exprNode, _) ->
             match exprNode.Expr with
             | FunctionDefinitionExpression (FunctionDefinition func) ->
                 match func.Body with
@@ -282,12 +283,12 @@ let ``Private function should parse with Private visibility`` () =
 private let helper x =
   x + 1
 """
-    match createAST "test" source with
+    match tokenise "test" source with
     | Error e -> Assert.Fail($"Parse failed: {e}")
     | Ok rows ->
-        match rowToExpression rows.Head with
+        match parseRow rows.Head emptyState with
         | Error e -> Assert.Fail($"AST build failed: {e.Message}")
-        | Ok exprNode ->
+        | Ok (exprNode, _) ->
             match exprNode.Expr with
             | FunctionDefinitionExpression (FunctionDefinition func) ->
                 Assert.Equal("helper", func.Identifier)
@@ -300,12 +301,12 @@ let ``Public function should default to Public visibility`` () =
 let add a b =
   a + b
 """
-    match createAST "test" source with
+    match tokenise "test" source with
     | Error e -> Assert.Fail($"Parse failed: {e}")
     | Ok rows ->
-        match rowToExpression rows.Head with
+        match parseRow rows.Head emptyState with
         | Error e -> Assert.Fail($"AST build failed: {e.Message}")
-        | Ok exprNode ->
+        | Ok (exprNode, _) ->
             match exprNode.Expr with
             | FunctionDefinitionExpression (FunctionDefinition func) ->
                 Assert.Equal(Types.Visibility.Public, func.Visibility)

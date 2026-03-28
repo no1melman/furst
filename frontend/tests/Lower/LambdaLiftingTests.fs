@@ -3,19 +3,18 @@ module Furst.Tests.LambdaLiftingTests
 open Xunit
 open Types
 open Ast
-open AstBuilder
+open RowParser
+open TokenCombinators
 open Lowered
 
 let lower (source: string) =
-    match Lexer.createAST "test.fu" source with
+    match Lexer.tokenise "test.fu" source with
     | Error e -> failwith $"Parse error: {e}"
     | Ok rows ->
-        let results = rows |> List.map rowToExpression
-        let errors = results |> List.choose (function Error e -> Some e.Message | _ -> None)
-        if not errors.IsEmpty then
-            let msg = System.String.Join("; ", errors)
-            failwith $"AST errors: {msg}"
-        let nodes = results |> List.choose (function Ok n -> Some n | _ -> None)
+        let nodes =
+            match RowParser.parseFile rows emptyState with
+            | Error e -> failwith $"AST error: {e.Message}"
+            | Ok (nodes, _) -> nodes
         Pipeline.lower (Types.ModulePath []) nodes
 
 [<Fact>]

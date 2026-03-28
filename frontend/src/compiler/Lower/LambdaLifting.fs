@@ -75,6 +75,9 @@ let liftLambdas (modulePath: ModulePath) (nodes: ExpressionNode list) : TopLevel
             let right = liftExpr parentName outerParams operation.Right
             OperatorExpression { operation with Left = left; Right = right }
 
+        | NegateExpression inner ->
+            NegateExpression (liftExpr parentName outerParams inner)
+
         | other -> other
 
     and collectIdents (exprs: Expression list) : Set<string> =
@@ -92,6 +95,8 @@ let liftLambdas (modulePath: ModulePath) (nodes: ExpressionNode list) : TopLevel
                 let details = funcDetails funcDef
                 let (BodyExpression body) = details.Body
                 collectIdents body |> Set.union acc
+            | NegateExpression inner ->
+                collectIdents [ inner ] |> Set.union acc
             | LiteralExpression _ -> acc
             | StructExpression _ -> acc
             | ModuleDeclaration _ -> acc
