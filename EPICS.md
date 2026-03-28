@@ -8,7 +8,7 @@
 | ADR | Title | Status | Covered by | % Done |
 |-----|-------|--------|-----------|--------|
 | 0001 | Symbol tracking | Proposed | 5b.7, 5b.8, 5b.10 | 100% |
-| 0002 | Type system & inference | Proposed | 6.1–6.3, 6.11–6.13, 11.1 | 0% |
+| 0002 | Type system & inference | Proposed | 6.1–6.3, 6.11–6.13, 11.1 | 50% |
 | 0003 | Async/green threads | Proposed | 12.1 | 0% |
 | 0004 | Memory ownership | Proposed | 8.1 | 0% |
 | 0005 | Resource management | Proposed | 9.1 | 0% |
@@ -119,9 +119,9 @@ Deferred:
 >
 > ADR-0002 phases 5–7 (sum types, pattern matching, generics) deferred to Epic 11.
 
-- [ ] 6.1 Hindley-Milner type inference — Algorithm W in the frontend, infer types for all expressions
-- [ ] 6.2 Type unification — unify type variables, detect mismatches, produce clear errors with source locations
-- [ ] 6.3 Typed AST — replace `Inferred` with concrete types after inference, flow through to .fso
+- [x] 6.1 Hindley-Milner type inference — Algorithm W in the frontend, infer types for all expressions
+- [x] 6.2 Type unification — unify type variables, detect mismatches, produce clear errors with source locations
+- [x] 6.3 Typed AST — replace `Inferred` with concrete types after inference, flow through to .fso
 - [ ] 6.4 Operators as infix functions — `+` desugars to `add(a, b)`, `-` to `subtract(a, b)`, `*` to `multiply(a, b)`
 - [ ] 6.5 Builtin operator functions — compiler-provided `add`, `subtract`, `multiply` with type-aware overloads (i32, i64, float, double)
 - [ ] 6.6 Operator definition — `let (+) a b = ...` syntax for user-defined operators

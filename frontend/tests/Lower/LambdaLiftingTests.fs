@@ -15,7 +15,9 @@ let lower (source: string) =
             match RowParser.parseFile rows emptyState with
             | Error e -> failwith $"AST error: {e.Message}"
             | Ok (nodes, _) -> nodes
-        Pipeline.lower (Types.ModulePath []) nodes
+        match Pipeline.lower (Types.ModulePath []) nodes with
+        | Ok defs -> defs
+        | Error e -> failwith $"Type error: {e}"
 
 [<Fact>]
 let ``Simple function with multiline body lowers to single top-level def`` () =

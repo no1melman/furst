@@ -65,47 +65,55 @@ let parseFile (filePath: string) : Result<ExpressionNode list * string, string> 
             | Ok (nodes, _state) ->
                 Ok (nodes, source)
 
-let lowerFileNodes (baseModulePath: ModulePath) (nodes: ExpressionNode list) : Lowered.TopLevelDef list =
+let lowerFileNodes (baseModulePath: ModulePath) (nodes: ExpressionNode list) : Result<Lowered.TopLevelDef list, string> =
     let mutable currentPath = baseModulePath
     let mutable currentGroup : ExpressionNode list = []
     let mutable allLowered : Lowered.TopLevelDef list = []
+    let mutable error : string option = None
 
     for node in nodes do
-        match node.Expr with
-        | LibDeclaration parts ->
-            // lib overrides the lib prefix — rebuild module path with new lib root
-            if not currentGroup.IsEmpty then
-                let lowered = Pipeline.lower currentPath (List.rev currentGroup)
-                allLowered <- allLowered @ lowered
-                currentGroup <- []
-            let (ModulePath currentParts) = baseModulePath
-            // Replace lib prefix: keep only the mod-level parts (last component of base path)
-            let modPart = currentParts |> List.tryLast |> Option.toList
-            currentPath <- ModulePath (parts @ modPart)
-        | ModuleDeclaration (parts, []) ->
-            if not currentGroup.IsEmpty then
-                let lowered = Pipeline.lower currentPath (List.rev currentGroup)
-                allLowered <- allLowered @ lowered
-                currentGroup <- []
-            currentPath <- ModulePath parts
-        | ModuleDeclaration (parts, body) ->
-            if not currentGroup.IsEmpty then
-                let lowered = Pipeline.lower currentPath (List.rev currentGroup)
-                allLowered <- allLowered @ lowered
-                currentGroup <- []
-            let bodyNodes = body |> List.map (fun expr -> { Expr = expr; Location = node.Location })
-            let lowered = Pipeline.lower (ModulePath parts) bodyNodes
-            allLowered <- allLowered @ lowered
-        | OpenDeclaration _ ->
-            currentGroup <- node :: currentGroup
-        | _ ->
-            currentGroup <- node :: currentGroup
+        if error.IsNone then
+            match node.Expr with
+            | LibDeclaration parts ->
+                if not currentGroup.IsEmpty then
+                    match Pipeline.lower currentPath (List.rev currentGroup) with
+                    | Ok lowered -> allLowered <- allLowered @ lowered
+                    | Error e -> error <- Some e
+                    currentGroup <- []
+                let (ModulePath currentParts) = baseModulePath
+                let modPart = currentParts |> List.tryLast |> Option.toList
+                currentPath <- ModulePath (parts @ modPart)
+            | ModuleDeclaration (parts, []) ->
+                if not currentGroup.IsEmpty then
+                    match Pipeline.lower currentPath (List.rev currentGroup) with
+                    | Ok lowered -> allLowered <- allLowered @ lowered
+                    | Error e -> error <- Some e
+                    currentGroup <- []
+                currentPath <- ModulePath parts
+            | ModuleDeclaration (parts, body) ->
+                if not currentGroup.IsEmpty then
+                    match Pipeline.lower currentPath (List.rev currentGroup) with
+                    | Ok lowered -> allLowered <- allLowered @ lowered
+                    | Error e -> error <- Some e
+                    currentGroup <- []
+                if error.IsNone then
+                    let bodyNodes = body |> List.map (fun expr -> { Expr = expr; Location = node.Location })
+                    match Pipeline.lower (ModulePath parts) bodyNodes with
+                    | Ok lowered -> allLowered <- allLowered @ lowered
+                    | Error e -> error <- Some e
+            | OpenDeclaration _ ->
+                currentGroup <- node :: currentGroup
+            | _ ->
+                currentGroup <- node :: currentGroup
 
-    if not currentGroup.IsEmpty then
-        let lowered = Pipeline.lower currentPath (List.rev currentGroup)
-        allLowered <- allLowered @ lowered
+    if error.IsNone && not currentGroup.IsEmpty then
+        match Pipeline.lower currentPath (List.rev currentGroup) with
+        | Ok lowered -> allLowered <- allLowered @ lowered
+        | Error e -> error <- Some e
 
-    allLowered
+    match error with
+    | Some e -> Result.Error e
+    | None -> Ok allLowered
 
 /// Load a .fsi manifest and register its symbols in the given table.
 /// Format: "qualified.path paramCount" per line.
@@ -137,8 +145,9 @@ let compileFiles (libRoot: string option) (files: string list) (manifests: strin
         | Result.Error error -> errors.Add(error)
         | Ok (nodes, _source) ->
             let modulePath = deriveModulePath libRoot file
-            let lowered = lowerFileNodes modulePath nodes
-            results.[indexMap.[file]] <- lowered
+            match lowerFileNodes modulePath nodes with
+            | Ok lowered -> results.[indexMap.[file]] <- lowered
+            | Error error -> errors.Add($"Type error in {file}: {error}")
     ) |> ignore
 
     if not (errors.IsEmpty) then

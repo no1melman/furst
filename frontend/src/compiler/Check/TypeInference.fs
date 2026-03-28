@@ -91,7 +91,23 @@ type TypeError = {
     Message: string
     Expected: InferType
     Actual: InferType
+    Location: SourceLocation option
 }
+
+let withLocation (loc: SourceLocation) (result: Result<'a, TypeError>) =
+    match result with
+    | Ok x -> Ok x
+    | Error e -> Error { e with Location = Some loc }
+
+let formatTypeError (error: TypeError) : string =
+    let locStr =
+        match error.Location with
+        | Some loc ->
+            let (Line line) = loc.StartLine
+            let (Column col) = loc.StartCol
+            $" at line {line}, column {col}"
+        | None -> ""
+    $"type error: {error.Message}{locStr}"
 
 /// Try to make two types equal. Returns a substitution that achieves this, or an error.
 let rec unify (type1: InferType) (type2: InferType) : Result<Substitution, TypeError> =
@@ -103,7 +119,7 @@ let rec unify (type1: InferType) (type2: InferType) : Result<Substitution, TypeE
     // this is where types actually get "solved"
     | TVar typeVar, otherType | otherType, TVar typeVar ->
         if occursIn typeVar otherType then
-            Result.Error { Message = "infinite type"; Expected = type1; Actual = type2 }
+            Result.Error { Message = "infinite type"; Expected = type1; Actual = type2; Location = None }
         else
             Result.Ok (Map.ofList [ typeVar, otherType ])
 
@@ -112,7 +128,7 @@ let rec unify (type1: InferType) (type2: InferType) : Result<Substitution, TypeE
         if params1.Length <> params2.Length then
             Result.Error {
                 Message = $"function arity mismatch: expected {params1.Length} params, got {params2.Length}"
-                Expected = type1; Actual = type2
+                Expected = type1; Actual = type2; Location = None
             }
         else
             // unify each pair (param1 with param1, param2 with param2, ... , return with return)
@@ -132,7 +148,7 @@ let rec unify (type1: InferType) (type2: InferType) : Result<Substitution, TypeE
 
     // two different concrete types — can never be equal
     | _ ->
-        Result.Error { Message = "type mismatch"; Expected = type1; Actual = type2 }
+        Result.Error { Message = "type mismatch"; Expected = type1; Actual = type2; Location = None }
 
 // -- Fresh type variable generator --
 // Each call to freshVar() returns a new unique type variable.
@@ -155,6 +171,18 @@ let resetVars () =
 // When we later see `add 1 2`, we look up `add` and unify with the argument types.
 
 type TypeEnv = Map<string, InferType>
+
+// -- Convert TypeDefinitions to InferType --
+
+let fromTypeDefinition (td: TypeDefinitions) : InferType option =
+    match td with
+    | I32 -> Some TInt
+    | I64 -> Some TInt64
+    | Float -> Some TFloat
+    | Double -> Some TDouble
+    | String -> Some TString
+    | Inferred -> None
+    | UserDefined _ -> None
 
 // -- Algorithm W: infer the type of an expression --
 // Given a type environment and an expression, returns:
@@ -269,9 +297,12 @@ let rec infer (env: TypeEnv) (expr: Expression) : Result<InferType * Substitutio
 //   3. Return type = type of last expression = t0 (which equals t1)
 //   4. Function type: (t0, t0) -> t0 (polymorphic — works on any type with +)
 
-let inferFunction (env: TypeEnv) (details: FunctionDetails) : Result<InferType * Substitution, TypeError> =
-    // assign fresh type vars to each parameter — we don't know their types yet
-    let paramTypes = details.Parameters |> List.map (fun _ -> freshVar ())
+let inferFunction (env: TypeEnv) (details: FunctionDetails) : Result<InferType * Substitution * TypeEnv, TypeError> =
+    // use explicit type annotation if provided, otherwise fresh var
+    let paramTypes = details.Parameters |> List.map (fun param ->
+        match fromTypeDefinition param.Type with
+        | Some t -> t
+        | None -> freshVar ())
     let paramNames = details.Parameters |> List.map (fun param -> let (Word word) = param.Name in word)
 
     // extend the environment with parameter names → their type variables
@@ -308,22 +339,28 @@ let inferFunction (env: TypeEnv) (details: FunctionDetails) : Result<InferType *
 
     match bodyResult with
     | Result.Error err -> Result.Error err
-    | Ok (returnType, subst, _) ->
+    | Ok (returnType, subst, localEnv) ->
         // apply the final substitution to parameter types — they might have been solved
         // e.g. if the body does `x + 1`, then x's type variable gets unified with i32
         let resolvedParams = paramTypes |> List.map (applySubst subst)
         let fnType = TFun (resolvedParams, returnType)
-        Result.Ok (fnType, subst)
+        // resolve all types in local env with final substitution
+        let resolvedEnv = localEnv |> Map.map (fun _ t -> applySubst subst t)
+        Result.Ok (fnType, subst, resolvedEnv)
 
-// -- Convert InferType back to TypeDefinitions --
-// Used when writing the resolved types into the lowered AST / .fso output
+// -- Convert between TypeDefinitions and InferType --
 
-let rec toTypeDefinition (inferType: InferType) : TypeDefinitions =
+/// Convert InferType to TypeDefinitions.
+/// Unconstrained type vars default to I32 (language has no generics yet).
+/// TFun with params is an error — function types can't be passed as values yet.
+/// TFun with no params (zero-arg function) unwraps to the return type.
+let rec toTypeDefinition (inferType: InferType) : Result<TypeDefinitions, string> =
     match inferType with
-    | TInt -> I32
-    | TInt64 -> I64
-    | TFloat -> Float
-    | TDouble -> Double
-    | TString -> String
-    | TVar _ -> I32       // unresolved vars default to i32 (safe fallback)
-    | TFun _ -> Inferred  // function types not yet representable in TypeDefinitions
+    | TInt -> Ok I32
+    | TInt64 -> Ok I64
+    | TFloat -> Ok Float
+    | TDouble -> Ok Double
+    | TString -> Ok String
+    | TVar _ -> Ok I32  // unconstrained → default to i32 (no generics yet)
+    | TFun ([], returnType) -> toTypeDefinition returnType
+    | TFun _ -> Error "function type not representable as a value"

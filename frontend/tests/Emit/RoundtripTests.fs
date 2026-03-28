@@ -15,7 +15,9 @@ let lower (source: string) =
             match RowParser.parseFile rows emptyState with
             | Error e -> failwith $"AST error: {e.Message}"
             | Ok (nodes, _) -> nodes
-        Pipeline.lower (Types.ModulePath []) nodes
+        match Pipeline.lower (Types.ModulePath []) nodes with
+        | Ok defs -> defs
+        | Error e -> failwith $"Type error: {e}"
 
 let roundtrip (source: string) =
     let defs = lower source
@@ -204,7 +206,9 @@ private let helper x =
                 match RowParser.parseFile rows emptyState with
                 | Error e -> failwith $"AST error: {e.Message}"
                 | Ok (nodes, _) -> nodes
-            Pipeline.lower (Types.ModulePath []) nodes
+            match Pipeline.lower (Types.ModulePath []) nodes with
+            | Ok defs -> defs
+            | Error e -> failwith $"Type error: {e}"
     let tmp = Path.GetTempFileName() + ".fso"
     try
         FsoWriter.writeFso tmp "test.fu" defs
@@ -230,7 +234,9 @@ let add x y =
                 match RowParser.parseFile rows emptyState with
                 | Error e -> failwith $"AST error: {e.Message}"
                 | Ok (nodes, _) -> nodes
-            Pipeline.lower (Types.ModulePath ["Math"; "Utils"]) nodes
+            match Pipeline.lower (Types.ModulePath ["Math"; "Utils"]) nodes with
+            | Ok defs -> defs
+            | Error e -> failwith $"Type error: {e}"
     let tmp = Path.GetTempFileName() + ".fso"
     try
         FsoWriter.writeFso tmp "test.fu" defs

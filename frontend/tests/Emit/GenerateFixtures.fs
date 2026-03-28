@@ -9,7 +9,7 @@ open TokenCombinators
 open Lowered
 
 let private fixtureDir =
-    Path.Combine(__SOURCE_DIRECTORY__, "..", "..", "backend", "tests", "fixtures")
+    Path.Combine(__SOURCE_DIRECTORY__, "..", "..", "..", "backend", "tests", "fixtures")
 
 let private lowerWithPath (modPath: string list) (source: string) =
     let fileName = "test.fu"
@@ -20,7 +20,9 @@ let private lowerWithPath (modPath: string list) (source: string) =
             match RowParser.parseFile rows emptyState with
             | Error e -> failwith $"AST error: {e.Message}"
             | Ok (nodes, _) -> nodes
-        Pipeline.lower (Types.ModulePath modPath) nodes
+        match Pipeline.lower (Types.ModulePath modPath) nodes with
+        | Ok defs -> defs
+        | Error e -> failwith $"Type error: {e}"
 
 let private lower (source: string) = lowerWithPath [] source
 

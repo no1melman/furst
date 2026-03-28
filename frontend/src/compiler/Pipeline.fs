@@ -4,59 +4,135 @@ open Types
 open Ast
 open Lowered
 
-/// Run type inference and build a map of function name -> (param types, return type)
-let inferTypes (nodes: ExpressionNode list) : Map<string, TypeDefinitions list * TypeDefinitions> =
+/// Convert an InferType to TypeDefinitions, formatting error with context
+let private convertType (context: string) (inferType: TypeInference.InferType) : Result<TypeDefinitions, string> =
+    match TypeInference.toTypeDefinition inferType with
+    | Ok td -> Ok td
+    | Error msg -> Error $"in '{context}': {msg}"
+
+/// Type map: function/binding name → (param types, return type)
+/// Body type map: function name → (local binding name → type)
+type InferResult = {
+    TypeMap: Map<string, TypeDefinitions list * TypeDefinitions>
+    BodyTypes: Map<string, Map<string, TypeDefinitions>>
+}
+
+/// Convert local env to TypeDefinitions map, ignoring unconvertible entries
+let private convertLocalEnv (fnName: string) (localEnv: TypeInference.TypeEnv) (paramNames: Set<string>) (outerNames: Set<string>)
+    : Result<Map<string, TypeDefinitions>, string> =
+    localEnv |> Map.fold (fun acc name inferType ->
+        match acc with
+        | Error _ -> acc
+        | Ok m ->
+            // skip params and outer-scope names — only want body let bindings
+            if Set.contains name paramNames || Set.contains name outerNames then Ok m
+            else
+                match convertType fnName inferType with
+                | Ok td -> Ok (Map.add name td m)
+                | Error e -> Error e
+    ) (Ok Map.empty)
+
+/// Run type inference and build type maps
+let inferTypes (nodes: ExpressionNode list) : Result<InferResult, string> =
     TypeInference.resetVars ()
-    let (typeMap, _) =
-        nodes |> List.fold (fun (typeMap, env) node ->
+    nodes |> List.fold (fun acc node ->
+        match acc with
+        | Error _ -> acc
+        | Ok (result, env) ->
             match node.Expr with
             | FunctionDefinitionExpression funcDef ->
                 let details = funcDetails funcDef
                 match TypeInference.inferFunction env details with
-                | Ok (fnType, substitution) ->
+                | Ok (fnType, substitution, localEnv) ->
                     let env' = Map.add details.Identifier fnType env
                     match fnType with
                     | TypeInference.TFun (paramTypes, returnType) ->
-                        let paramTypeDefs = paramTypes |> List.map (TypeInference.applySubst substitution >> TypeInference.toTypeDefinition)
-                        let returnTypeDef = TypeInference.applySubst substitution returnType |> TypeInference.toTypeDefinition
-                        (Map.add details.Identifier (paramTypeDefs, returnTypeDef) typeMap, env')
-                    | _ -> (typeMap, env')
-                | Result.Error _e -> (typeMap, env)
+                        let resolvedParams = paramTypes |> List.map (TypeInference.applySubst substitution)
+                        let resolvedReturn = TypeInference.applySubst substitution returnType
+                        match resolvedParams |> List.map (convertType details.Identifier) |> List.fold (fun acc r ->
+                            match acc, r with
+                            | Error e, _ -> Error e
+                            | _, Error e -> Error e
+                            | Ok xs, Ok x -> Ok (xs @ [x])) (Ok []) with
+                        | Error e -> Error e
+                        | Ok paramTypeDefs ->
+                            match convertType details.Identifier resolvedReturn with
+                            | Error e -> Error e
+                            | Ok returnTypeDef ->
+                                let paramNames = details.Parameters |> List.map (fun p -> let (Word w) = p.Name in w) |> Set.ofList
+                                let outerNames = env |> Map.toSeq |> Seq.map fst |> Set.ofSeq
+                                match convertLocalEnv details.Identifier localEnv paramNames outerNames with
+                                | Error e -> Error e
+                                | Ok bodyTypes ->
+                                    let result' = {
+                                        result with
+                                            TypeMap = Map.add details.Identifier (paramTypeDefs, returnTypeDef) result.TypeMap
+                                            BodyTypes = Map.add details.Identifier bodyTypes result.BodyTypes
+                                    }
+                                    Ok (result', env')
+                    | _ -> Ok (result, env')
+                | Result.Error e ->
+                    let e' = { e with TypeInference.TypeError.Location = Some node.Location }
+                    Error (TypeInference.formatTypeError e')
             | LetBindingExpression letBinding ->
                 match TypeInference.infer env letBinding.Value with
                 | Ok (inferredType, _) ->
-                    let typeDef = TypeInference.toTypeDefinition inferredType
-                    let env' = Map.add letBinding.Name inferredType env
-                    (Map.add letBinding.Name ([], typeDef) typeMap, env')
-                | Result.Error _ -> (typeMap, env)
-            | _ -> (typeMap, env)
-        ) (Map.empty, Map.empty)
-    typeMap
+                    match convertType letBinding.Name inferredType with
+                    | Error e -> Error e
+                    | Ok typeDef ->
+                        let env' = Map.add letBinding.Name inferredType env
+                        let result' = { result with TypeMap = Map.add letBinding.Name ([], typeDef) result.TypeMap }
+                        Ok (result', env')
+                | Result.Error e ->
+                    let e' = { e with TypeInference.TypeError.Location = Some node.Location }
+                    Error (TypeInference.formatTypeError e')
+            | _ -> Ok (result, env)
+    ) (Ok ({ TypeMap = Map.empty; BodyTypes = Map.empty }, Map.empty))
+    |> Result.map fst
+
+/// Update let binding types in expression bodies using body type map
+let rec private applyBodyTypes (bodyTypes: Map<string, TypeDefinitions>) (expr: Expression) : Expression =
+    match expr with
+    | LetBindingExpression lb ->
+        let newType = Map.tryFind lb.Name bodyTypes |> Option.defaultValue lb.Type
+        LetBindingExpression { lb with Type = newType; Value = applyBodyTypes bodyTypes lb.Value }
+    | OperatorExpression op ->
+        OperatorExpression { op with Left = applyBodyTypes bodyTypes op.Left; Right = applyBodyTypes bodyTypes op.Right }
+    | FunctionCallExpression call ->
+        FunctionCallExpression { call with Arguments = call.Arguments |> List.map (applyBodyTypes bodyTypes) }
+    | NegateExpression inner -> NegateExpression (applyBodyTypes bodyTypes inner)
+    | _ -> expr
 
 /// Apply inferred types to a list of lowered definitions.
 /// Replaces Inferred parameter and return types with concrete types from the type map.
-let private applyInferredTypes (typeMap: Map<string, TypeDefinitions list * TypeDefinitions>) (defs: TopLevelDef list) : TopLevelDef list =
+/// Also updates let binding types in function bodies.
+let private applyInferredTypes (result: InferResult) (defs: TopLevelDef list) : TopLevelDef list =
     defs |> List.map (fun def ->
         match def with
         | TopFunction functionDef ->
-            match Map.tryFind functionDef.Name typeMap with
+            match Map.tryFind functionDef.Name result.TypeMap with
             | Some (paramTypes, returnType) ->
                 let updatedParams =
                     if paramTypes.Length = functionDef.Parameters.Length then
                         List.zip functionDef.Parameters paramTypes
                         |> List.map (fun (param, inferredType) -> { param with Type = inferredType })
                     else functionDef.Parameters
-                TopFunction { functionDef with ReturnType = returnType; Parameters = updatedParams }
+                let bodyTypes = Map.tryFind functionDef.Name result.BodyTypes |> Option.defaultValue Map.empty
+                let updatedBody = functionDef.Body |> List.map (applyBodyTypes bodyTypes)
+                TopFunction { functionDef with ReturnType = returnType; Parameters = updatedParams; Body = updatedBody }
             | None -> def
         | TopStruct _ | TopOpen _ -> def
     )
 
 /// Full lowering pipeline: Check -> Lower -> Apply types
-let lower (modulePath: ModulePath) (nodes: ExpressionNode list) : TopLevelDef list =
-    let typeMap = inferTypes nodes
-    nodes
-    |> LambdaLifting.liftLambdas modulePath
-    |> applyInferredTypes typeMap
+let lower (modulePath: ModulePath) (nodes: ExpressionNode list) : Result<TopLevelDef list, string> =
+    match inferTypes nodes with
+    | Error e -> Error e
+    | Ok result ->
+        nodes
+        |> LambdaLifting.liftLambdas modulePath
+        |> applyInferredTypes result
+        |> Ok
 
 /// Build symbol table from lowered defs, check for duplicates
 let buildSymbolTable (defs: TopLevelDef list) : Result<SymbolTable.SymbolTable, string> =
