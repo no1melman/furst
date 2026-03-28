@@ -24,6 +24,7 @@
     <Compile Include="Parse/Ast/LetBindingTests.fs" />
     <Compile Include="Parse/Ast/FunctionDefinitionTests.fs" />
     <Compile Include="Parse/Ast/ExpressionTests.fs" />
+    <Compile Include="Parse/Ast/UserDefinedOperatorTests.fs" />
     <Compile Include="Parse/Ast/ModuleSystemTests.fs" />
     <Compile Include="Parse/Ast/ModuleSystemErrorTests.fs" />
     <Compile Include="Parse/DebugAstTest.fs" />

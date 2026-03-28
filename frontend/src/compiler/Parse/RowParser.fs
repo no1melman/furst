@@ -79,12 +79,13 @@ and parseLetOrFunc (row: Row) (state: ParseState) (visibility: Visibility) : Res
         | _ -> row.Expressions
     // skip Let
     let afterLet = exprTokens |> List.tail
-    // get name
+    // get name (either regular Name or OperatorName from lexer)
     match afterLet with
     | nameToken :: rest ->
         let name =
             match nameToken.Token with
             | Name (Word n) -> Some n
+            | OperatorName n -> Some n
             | _ -> None
         match name with
         | None ->

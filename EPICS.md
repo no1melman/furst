@@ -124,7 +124,7 @@ Deferred:
 - [x] 6.3 Typed AST — replace `Inferred` with concrete types after inference, flow through to .fso
 - [ ] 6.4 Operators as infix functions — `+` desugars to `add(a, b)`, `-` to `subtract(a, b)`, `*` to `multiply(a, b)`
 - [ ] 6.5 Builtin operator functions — compiler-provided `add`, `subtract`, `multiply` with type-aware overloads (i32, i64, float, double)
-- [ ] 6.6 Operator definition — `let (+) a b = ...` syntax for user-defined operators
+- [x] 6.6 Operator definition — `let (+) a b = ...` syntax for user-defined operators
 - [ ] 6.7 Operator resolution — `a + b` in source resolves to matching operator function definition
 - [ ] 6.8 Precedence and associativity — builtin precedence table, user operators default to lowest precedence
 - [ ] 6.9 Backend type-aware codegen — emit `fadd`/`fsub` for floats, `add`/`sub` for ints based on inferred types

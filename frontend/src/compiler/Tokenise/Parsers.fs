@@ -12,8 +12,9 @@ type BlockScopeParserState =
   {
     Depth: int
     Capture: IndentationCapture
+    Operators: Map<string, string>  // symbol string (e.g. "|>") -> operator name (e.g. "(|>)")
   }
-  static member Default = { Depth = 0; Capture = NoStatus }
+  static member Default = { Depth = 0; Capture = NoStatus; Operators = Map.empty }
 type Parser<'t> = Parser<'t, BlockScopeParserState>
 
 let isIdentifierChar c = c <> ' ' && (isLetter c || isDigit c)
@@ -64,6 +65,35 @@ let typeChoicesTokenParser : Parser<_> = withPosition (choice [
     wordParser |>> (UserDefined >> TypeDefinition)
 ])
 let typeIdentifierTokenParser : Parser<_> = withPosition (pchar ':' >>% TypeIdentifier)
+
+let isOperatorSymbolChar c = c = '|' || c = '>' || c = '<' || c = '+' || c = '-' || c = '*'
+
+let private symbolCharToWord (c: char) : string =
+    match c with
+    | '|' -> "pipe"
+    | '>' -> "gt"
+    | '<' -> "lt"
+    | '+' -> "add"
+    | '-' -> "sub"
+    | '*' -> "mul"
+    | _ -> "unknown"
+
+let mangleOperatorName (symbols: string) : string =
+    symbols |> Seq.map symbolCharToWord |> String.concat "_" |> sprintf "op_%s"
+
+/// Parse ( symbols ) as an operator name token, e.g. (|>) -> OperatorName "op_pipe_gt"
+/// Max 5 symbol chars
+let operatorNameParser : Parser<_> =
+    withPosition (
+        between (pchar '(') (pchar ')')
+            (many1Satisfy2 isOperatorSymbolChar isOperatorSymbolChar)
+        >>= fun symbols ->
+            if symbols.Length > 5 then
+                fail "Operator name must be at most 5 symbol characters"
+            else
+                let mangledName = mangleOperatorName symbols
+                updateUserState (fun st -> { st with Operators = Map.add symbols mangledName st.Operators })
+                >>% OperatorName mangledName)
 
 let qualifiedNameParser : Parser<_> =
     withPosition (

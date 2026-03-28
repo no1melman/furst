@@ -35,12 +35,15 @@ let parameterDefinitionParser =
   sepEndBy1 (attempt singleParameterParser <|> typedParameterParser) pWhitespace
   |>> List.collect id
 
+let letNameParser =
+  (attempt operatorNameParser) <|> (wordTokenParser <?> "Expecting variable identifier")
+
 let letBlockParser =
   pipe2
     (opt (privateWordTokenParser .>> pManyWhitespace))
     (pipe5
       (letWordTokenParser <?> "Expecting let keyword" .>> pManyWhitespace)
-      (wordTokenParser <?> "Expecting variable identifier" .>> pManyWhitespace)
+      (letNameParser .>> pManyWhitespace)
       (opt (parameterDefinitionParser .>> pManyWhitespace))
       (opt (typeIdentifierTokenParser .>> pManyWhitespace1 .>>. typeChoicesTokenParser .>> pManyWhitespace1 |>> List.fromPair ) .>> pManyWhitespace)
       assignmentSymbolTokenParser
@@ -84,6 +87,39 @@ let structParser =
 let indentTokenParser =
   manySatisfy (fun c -> c = ' ' || c = '\t') |>> fun spaces -> spaces.Length
 
+/// Dynamic parser: tries to match registered user-defined operators (longest first)
+let userOperatorTokenParser : Parser<TokenWithMetadata, BlockScopeParserState> =
+    fun stream ->
+        let state = stream.UserState
+        if state.Operators.IsEmpty then
+            Reply(Error, expected "no operators registered")
+        else
+            // sort by length descending so longest match wins
+            let sorted = state.Operators |> Map.toList |> List.sortByDescending (fun (sym, _) -> sym.Length)
+            let mutable found = false
+            let mutable result = Reply(Error, expected "no operator match")
+            for (sym, opName) in sorted do
+                if not found then
+                    let startPos = stream.Position
+                    let startIndex = stream.Index
+                    let mutable matched = true
+                    for c in sym do
+                        if matched && not (stream.IsEndOfStream) && stream.Peek() = c then
+                            stream.Skip()
+                        else
+                            matched <- false
+                    if matched then
+                        found <- true
+                        let endPos = stream.Position
+                        let length = int (endPos.Column - startPos.Column)
+                        result <- Reply({ Line = Line startPos.Line
+                                          Column = Column startPos.Column
+                                          Length = TokenLength length
+                                          Token = OperatorUse opName })
+                    else
+                        stream.Seek(startIndex)
+            result
+
 let tokenParser =
   choice [
     modWordTokenParser
@@ -98,6 +134,7 @@ let tokenParser =
     assignmentSymbolTokenParser
     enclosementOpenOperatorTokenParser
     enclosementClosedOperatorTokenParser
+    attempt userOperatorTokenParser
     pipeSymbolTokenParser
     additionSymbolTokenParser
     subtractionSymbolTokenParser
@@ -202,6 +239,8 @@ let rec printRow (row: Row) : unit =
        | QualifiedName parts -> sprintf "%s " (System.String.Join(".", parts)) |> append
        | NumberLiteral (IntValue i)   -> sprintf "%d " i |> append
        | NumberLiteral (FloatValue f) -> sprintf "%g " f |> append
+       | OperatorName n -> sprintf "%s " n |> append
+       | OperatorUse n -> sprintf "%s " n |> append
        | NoToken -> ()
        | OpenBrace -> "{ " |> append
        | ClosedBrace -> "} " |> append

@@ -45,6 +45,8 @@ type Tokens =
   | QualifiedName of string list
   | Parameter of string
   | NumberLiteral of NumberValue
+  | OperatorName of string
+  | OperatorUse of string
   | NoToken
 
 type Line = Line of int64
