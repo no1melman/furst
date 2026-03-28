@@ -14,7 +14,7 @@
 | 0005 | Resource management | Proposed | 9.1 | 0% |
 | 0006 | Allocation strategy | Proposed | 8.1 | 0% |
 | 0007 | String/collection types | Proposed | 10.1 | 0% |
-| 0008 | Module system | Accepted | 5b.1–5b.16 | 0% |
+| 0008 | Module system | Accepted | 5b.1–5b.16 | 6% |
 
 ## Epic 1: Build Infrastructure
 
@@ -73,7 +73,7 @@
 > ADR-0001 (symbol tracking) is implemented by the scoped symbol table (5b.7–5b.10) — two-pass collection + validation approach.
 > ADR-0008 (module system) is the primary driver for all tasks in this epic.
 
-- [ ] 5b.1 `mod` keyword parsing — parse `mod Name` blocks with indentation-scoped body, dotted names (e.g. `mod Api.Types`) build hierarchy structurally
+- [x] 5b.1 `mod` keyword parsing — parse `mod Name` blocks with indentation-scoped body, dotted names (e.g. `mod Api.Types`) build hierarchy structurally
 - [ ] 5b.2 Implicit mod from filesystem — filename becomes mod name, directories extend lib path (e.g. `src/collections/list.fu` with yaml root `Furst` → lib `Furst.Collections`, mod `List`)
 - [ ] 5b.3 `lib` keyword parsing — parse `lib Path` in library projects only (compile error in executables), relative to yaml root name, overrides filesystem-derived lib path
 - [ ] 5b.4 Yaml schema update — add `library: name:` field for root lib name (library projects only). Top-level `name:` remains as project name for all project types

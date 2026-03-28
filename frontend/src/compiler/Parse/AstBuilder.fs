@@ -115,11 +115,9 @@ let rec rowToExpression (row: Row) : Result<ExpressionNode, CompileError> =
     match tokensFromRow row with
     // mod Foo or mod Foo.Bar (via qualified name)
     | Mod :: Name (Word name) :: _ ->
-        let loc = rowLocation row
-        Result.Ok { Expr = ModuleDeclaration [name]; Location = loc }
+        buildModDeclaration [name] row
     | Mod :: QualifiedName parts :: _ ->
-        let loc = rowLocation row
-        Result.Ok { Expr = ModuleDeclaration parts; Location = loc }
+        buildModDeclaration parts row
     // open Foo or open Foo.Bar
     | Open :: Name (Word name) :: _ ->
         let loc = rowLocation row
@@ -369,3 +367,29 @@ and buildStructDefinition (name: string) (row: Row) : Result<ExpressionNode, Com
             Location = loc
         }
     | Error e -> Result.Error e
+
+and buildModBody (bodyRows: Row list) : Result<Expression list, CompileError> =
+    let results = bodyRows |> List.map rowToExpression
+    let errors = results |> List.choose (function Result.Error e -> Some e | _ -> None)
+    match errors with
+    | e :: _ -> Result.Error e
+    | [] ->
+        let nodes = results |> List.choose (function Ok n -> Some n | _ -> None)
+        match nodes |> List.tryFind (fun n -> match n.Expr with ModuleDeclaration _ -> true | _ -> false) with
+        | Some nested ->
+            Result.Error {
+                Message = "Nested mod declarations are not allowed"
+                Line = nested.Location.StartLine
+                Column = nested.Location.StartCol
+                Length = TokenLength 0
+            }
+        | None -> Result.Ok (nodes |> List.map _.Expr)
+
+and buildModDeclaration (parts: string list) (row: Row) : Result<ExpressionNode, CompileError> =
+    let loc = rowLocation row
+    match row.Body with
+    | [] -> Result.Ok { Expr = ModuleDeclaration (parts, []); Location = loc }
+    | body ->
+        match buildModBody body with
+        | Result.Error e -> Result.Error e
+        | Ok bodyExprs -> Result.Ok { Expr = ModuleDeclaration (parts, bodyExprs); Location = loc }

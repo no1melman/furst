@@ -2,6 +2,8 @@ module Compiler
 
 open System
 open System.IO
+open System.Collections.Concurrent
+open System.Threading.Tasks
 open Types
 open Ast
 open AstBuilder
@@ -67,12 +69,20 @@ let lowerFileNodes (baseModulePath: ModulePath) (nodes: ExpressionNode list) : L
 
     for node in nodes do
         match node.Expr with
-        | ModuleDeclaration parts ->
+        | ModuleDeclaration (parts, []) ->
             if not currentGroup.IsEmpty then
                 let lowered = Pipeline.lower currentPath (List.rev currentGroup)
                 allLowered <- allLowered @ lowered
                 currentGroup <- []
             currentPath <- ModulePath parts
+        | ModuleDeclaration (parts, body) ->
+            if not currentGroup.IsEmpty then
+                let lowered = Pipeline.lower currentPath (List.rev currentGroup)
+                allLowered <- allLowered @ lowered
+                currentGroup <- []
+            let bodyNodes = body |> List.map (fun expr -> { Expr = expr; Location = node.Location })
+            let lowered = Pipeline.lower (ModulePath parts) bodyNodes
+            allLowered <- allLowered @ lowered
         | OpenDeclaration _ ->
             currentGroup <- node :: currentGroup
         | _ ->
@@ -83,3 +93,25 @@ let lowerFileNodes (baseModulePath: ModulePath) (nodes: ExpressionNode list) : L
         allLowered <- allLowered @ lowered
 
     allLowered
+
+let compileFiles (files: string list) : Result<Lowered.TopLevelDef list, string> =
+    let indexMap = files |> List.mapi (fun i f -> (f, i)) |> Map.ofList
+    let results = ConcurrentDictionary<int, Lowered.TopLevelDef list>()
+    let errors = ConcurrentBag<string>()
+
+    Parallel.ForEach(files, fun file ->
+        match parseFile file with
+        | Result.Error error -> errors.Add(error)
+        | Ok (nodes, _source) ->
+            let modulePath = deriveModulePath file
+            let lowered = lowerFileNodes modulePath nodes
+            results.[indexMap.[file]] <- lowered
+    ) |> ignore
+
+    if not (errors.IsEmpty) then
+        Result.Error (errors |> Seq.head)
+    else
+        let ordered =
+            [0 .. files.Length - 1]
+            |> List.collect (fun i -> results.[i])
+        Result.Ok ordered

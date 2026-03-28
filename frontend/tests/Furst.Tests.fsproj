@@ -18,6 +18,7 @@
     <Compile Include="Parse/Ast/FunctionDefinitionTests.fs" />
     <Compile Include="Parse/Ast/ExpressionTests.fs" />
     <Compile Include="Parse/Ast/ModuleSystemTests.fs" />
+    <Compile Include="Parse/Ast/ModuleSystemErrorTests.fs" />
     <Compile Include="Parse/DebugAstTest.fs" />
     <Compile Include="Lower/LambdaLiftingTests.fs" />
     <Compile Include="Emit/RoundtripTests.fs" />

@@ -6,12 +6,25 @@
     <AssemblyName>furst</AssemblyName>
     <PublishSingleFile>true</PublishSingleFile>
     <SelfContained>true</SelfContained>
-    <PublishTrimmed>true</PublishTrimmed>
+    <PublishTrimmed>false</PublishTrimmed>
   </PropertyGroup>
 
   <ItemGroup>
+    <Compile Include="CliArgs.fs" />
+    <Compile Include="Commands/LexCommand.fs" />
+    <Compile Include="Commands/AstCommand.fs" />
+    <Compile Include="Commands/CheckCommand.fs" />
+    <Compile Include="Commands/NewCommand.fs" />
+    <Compile Include="Commands/VersionCommand.fs" />
+    <Compile Include="Commands/BuildCommand.fs" />
+    <Compile Include="Commands/RunCommand.fs" />
     <Compile Include="Cli.fs" />
     <Compile Include="Program.fs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Argu" Version="6.2.4" />
+    <PackageReference Include="Spectre.Console" Version="0.49.1" />
   </ItemGroup>
 
   <ItemGroup>
