@@ -15,7 +15,7 @@ let lower (source: string) =
             match RowParser.parseFile rows emptyState with
             | Error e -> failwith $"AST error: {e.Message}"
             | Ok (nodes, _) -> nodes
-        match Pipeline.lower (Types.ModulePath []) nodes with
+        match Pipeline.lower { ProjectType = Types.Executable; EntryPoint = Some Pipeline.EntryPointName; ModulePath = Types.ModulePath [] } nodes with
         | Ok defs -> defs
         | Error e -> failwith $"Type error: {e}"
 
@@ -206,7 +206,7 @@ private let helper x =
                 match RowParser.parseFile rows emptyState with
                 | Error e -> failwith $"AST error: {e.Message}"
                 | Ok (nodes, _) -> nodes
-            match Pipeline.lower (Types.ModulePath []) nodes with
+            match Pipeline.lower { ProjectType = Types.Executable; EntryPoint = Some Pipeline.EntryPointName; ModulePath = Types.ModulePath [] } nodes with
             | Ok defs -> defs
             | Error e -> failwith $"Type error: {e}"
     let tmp = Path.GetTempFileName() + ".fso"
@@ -234,7 +234,8 @@ let add x y =
                 match RowParser.parseFile rows emptyState with
                 | Error e -> failwith $"AST error: {e.Message}"
                 | Ok (nodes, _) -> nodes
-            match Pipeline.lower (Types.ModulePath ["Math"; "Utils"]) nodes with
+            let ctx: Types.CompileContext = { ProjectType = Types.Executable; EntryPoint = Some Pipeline.EntryPointName; ModulePath = Types.ModulePath ["Math"; "Utils"] }
+            match Pipeline.lower ctx nodes with
             | Ok defs -> defs
             | Error e -> failwith $"Type error: {e}"
     let tmp = Path.GetTempFileName() + ".fso"

@@ -62,18 +62,62 @@ static llvm::Type* resolve_type(llvm::LLVMContext& ctx, const ast::TypeRef& type
     return llvm::Type::getInt32Ty(ctx);
 }
 
+static std::string llvm_type_name(const llvm::Type* type) {
+    if (type->isIntegerTy(32)) {
+        return "i32";
+    }
+    if (type->isIntegerTy(64)) {
+        return "i64";
+    }
+    if (type->isFloatTy()) {
+        return "float";
+    }
+    if (type->isDoubleTy()) {
+        return "double";
+    }
+    if (type->isPointerTy()) {
+        return "string";
+    }
+    if (type->isVoidTy()) {
+        return "void";
+    }
+    std::string raw;
+    llvm::raw_string_ostream os(raw);
+    type->print(os);
+    return "unhandled<" + raw + ">";
+}
+
+// ICE — internal compiler error. Formats the error, prints to stderr, and aborts.
+[[noreturn]] static void ice(const CompileError& error) {
+    llvm::errs() << "ICE: " << format_error(error) << "\n";
+    std::abort();
+}
+
 // Forward declaration — mutually recursive with emit_operation and emit_let_binding
 static llvm::Value* emit_expression(llvm::IRBuilder<>& builder, llvm::Module& mod,
                                     NamedValues& names, const DebugCtx& dbg,
-                                    const NameMap& name_map, const ast::Expression& expr);
+                                    const NameMap& name_map, const ast::Expression& expr,
+                                    std::optional<CompileError>* err);
 
 static llvm::Value* emit_operation(llvm::IRBuilder<>& builder, llvm::Module& mod,
                                    NamedValues& names, const DebugCtx& dbg, const NameMap& name_map,
-                                   const ast::Operation& op) {
-    auto* lhs = emit_expression(builder, mod, names, dbg, name_map, op.left);
-    auto* rhs = emit_expression(builder, mod, names, dbg, name_map, op.right);
+                                   const ast::Operation& op, std::optional<CompileError>* err) {
+    auto* lhs = emit_expression(builder, mod, names, dbg, name_map, op.left, err);
+    auto* rhs = emit_expression(builder, mod, names, dbg, name_map, op.right, err);
 
     if (lhs == nullptr || rhs == nullptr) {
+        return nullptr;
+    }
+
+    if (lhs->getType() != rhs->getType()) {
+        auto loc = op.left.location;
+        *err = TypeMismatch{
+            .context = "binary operation",
+            .expected = llvm_type_name(lhs->getType()),
+            .actual = llvm_type_name(rhs->getType()),
+            .line = loc.start_line,
+            .col = loc.start_col,
+        };
         return nullptr;
     }
 
@@ -96,8 +140,9 @@ static llvm::Value* emit_operation(llvm::IRBuilder<>& builder, llvm::Module& mod
 
 static llvm::Value* emit_let_binding(llvm::IRBuilder<>& builder, llvm::Module& mod,
                                      NamedValues& names, const DebugCtx& dbg,
-                                     const NameMap& name_map, const ast::LetBinding& binding) {
-    auto* val = emit_expression(builder, mod, names, dbg, name_map, binding.value);
+                                     const NameMap& name_map, const ast::LetBinding& binding,
+                                     std::optional<CompileError>* err) {
+    auto* val = emit_expression(builder, mod, names, dbg, name_map, binding.value, err);
     if (val == nullptr) {
         return nullptr;
     }
@@ -111,8 +156,9 @@ static llvm::Value* emit_let_binding(llvm::IRBuilder<>& builder, llvm::Module& m
 
 static llvm::Value* emit_expression(llvm::IRBuilder<>& builder, llvm::Module& mod,
                                     NamedValues& names, const DebugCtx& dbg,
-                                    const NameMap& name_map, const ast::Expression& expr) {
-    if (!expr.kind) {
+                                    const NameMap& name_map, const ast::Expression& expr,
+                                    std::optional<CompileError>* err) {
+    if (!expr.kind || err->has_value()) {
         return nullptr;
     }
 
@@ -148,13 +194,14 @@ static llvm::Value* emit_expression(llvm::IRBuilder<>& builder, llvm::Module& mo
 
     // Binary operation
     if (std::holds_alternative<ast::Operation>(kind)) {
-        return emit_operation(builder, mod, names, dbg, name_map, std::get<ast::Operation>(kind));
+        return emit_operation(builder, mod, names, dbg, name_map, std::get<ast::Operation>(kind),
+                              err);
     }
 
     // Let binding
     if (std::holds_alternative<ast::LetBinding>(kind)) {
-        return emit_let_binding(builder, mod, names, dbg, name_map,
-                                std::get<ast::LetBinding>(kind));
+        return emit_let_binding(builder, mod, names, dbg, name_map, std::get<ast::LetBinding>(kind),
+                                err);
     }
 
     // Function call
@@ -172,11 +219,33 @@ static llvm::Value* emit_expression(llvm::IRBuilder<>& builder, llvm::Module& mo
             return nullptr;
         }
 
+        if (callee->arg_size() != call.arguments.size()) {
+            *err = TypeMismatch{
+                .context = call.name,
+                .expected = std::to_string(callee->arg_size()) + " arguments",
+                .actual = std::to_string(call.arguments.size()) + " arguments",
+                .line = expr.location.start_line,
+                .col = expr.location.start_col,
+            };
+            return nullptr;
+        }
+
         auto args = std::vector<llvm::Value*>{};
         args.reserve(call.arguments.size());
-        for (const auto& arg : call.arguments) {
-            auto* val = emit_expression(builder, mod, names, dbg, name_map, arg);
+        for (size_t i = 0; i < call.arguments.size(); ++i) {
+            auto* val = emit_expression(builder, mod, names, dbg, name_map, call.arguments[i], err);
             if (val == nullptr) {
+                return nullptr;
+            }
+            auto* expected_type = callee->getFunctionType()->getParamType(i);
+            if (val->getType() != expected_type) {
+                *err = TypeMismatch{
+                    .context = call.name + " argument " + std::to_string(i + 1),
+                    .expected = llvm_type_name(expected_type),
+                    .actual = llvm_type_name(val->getType()),
+                    .line = call.arguments[i].location.start_line,
+                    .col = call.arguments[i].location.start_col,
+                };
                 return nullptr;
             }
             args.push_back(val);
@@ -368,12 +437,26 @@ Result<EmittedModule, CompileError> emit_module(const ast::FurstModule& module,
         // Set initial debug location to function start
         set_debug_loc(builder, dbg, fn.location);
 
+        auto err = std::optional<CompileError>{};
+
         llvm::Value* last_val = nullptr;
         for (const auto& expr : fn.body) {
-            last_val = emit_expression(builder, *llvm_mod, names, dbg, name_map, expr);
+            last_val = emit_expression(builder, *llvm_mod, names, dbg, name_map, expr, &err);
+            if (err.has_value()) {
+                ice(err.value());
+            }
         }
 
         if (last_val != nullptr) {
+            if (last_val->getType() != ret_type) {
+                ice(TypeMismatch{
+                    .context = fn.name + " return",
+                    .expected = llvm_type_name(ret_type),
+                    .actual = llvm_type_name(last_val->getType()),
+                    .line = fn.location.start_line,
+                    .col = fn.location.start_col,
+                });
+            }
             builder.CreateRet(last_val);
         } else {
             builder.CreateRet(llvm::Constant::getNullValue(ret_type));

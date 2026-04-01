@@ -20,7 +20,8 @@ let private lowerWithPath (modPath: string list) (source: string) =
             match RowParser.parseFile rows emptyState with
             | Error e -> failwith $"AST error: {e.Message}"
             | Ok (nodes, _) -> nodes
-        match Pipeline.lower (Types.ModulePath modPath) nodes with
+        let ctx: Types.CompileContext = { ProjectType = Types.Executable; EntryPoint = Some Pipeline.EntryPointName; ModulePath = Types.ModulePath modPath }
+        match Pipeline.lower ctx nodes with
         | Ok defs -> defs
         | Error e -> failwith $"Type error: {e}"
 
@@ -91,7 +92,7 @@ let f x =
 [<Fact>]
 let ``Generate fixture: return_42`` () =
     writeFixture "return_42" """
-let main =
+let main args =
   42
 """
 
@@ -101,7 +102,7 @@ let ``Generate fixture: add_and_return`` () =
 let add x y =
   x + y
 
-let main =
+let main args =
   add 13 29
 """
 
@@ -125,7 +126,7 @@ let ``Generate fixture: float_add`` () =
 let addFloats x y =
   x + y
 
-let main =
+let main args =
   let r = addFloats 1.5 2.5
   0
 """

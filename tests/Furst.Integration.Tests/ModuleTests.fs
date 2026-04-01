@@ -13,7 +13,7 @@ let add x y =
   x + y
 """
         "main.fu", """
-let main =
+let main args =
   Math.add 20 22
 """
     ]
@@ -33,7 +33,7 @@ let double x =
         "main.fu", """
 open Math
 
-let main =
+let main args =
   double 21
 """
     ]
@@ -59,7 +59,7 @@ let sub x y =
         "main.fu", """
 open Math
 
-let main =
+let main args =
   add 40 (sub 5 3)
 """
     ]
@@ -74,7 +74,7 @@ let ``Private function accessible within same mod`` () =
 private let secret x =
   x + 1
 
-let main =
+let main args =
   secret 41
 """
     ]

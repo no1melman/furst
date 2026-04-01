@@ -65,3 +65,11 @@ type Row =
       Body: Row list }
 
 type ModulePath = ModulePath of string list
+
+type ProjectType = Executable | Library
+
+type CompileContext = {
+    ProjectType: ProjectType
+    EntryPoint: string option
+    ModulePath: ModulePath
+}

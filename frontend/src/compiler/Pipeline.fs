@@ -41,10 +41,12 @@ type private FnInferInfo = {
     OuterNames: Set<string>
 }
 
+let [<Literal>] EntryPointName = "main"
+
 /// Run type inference and build type maps.
 /// Two-phase: first infer all functions (keeping TVars), then convert to TypeDefinitions.
 /// This lets call sites constrain earlier functions' TVars before defaulting to i32.
-let inferTypes (nodes: ExpressionNode list) : Result<InferResult, string> =
+let inferTypes (ctx: CompileContext) (nodes: ExpressionNode list) : Result<InferResult, string> =
     TypeInference.resetVars ()
 
     // Phase 1: infer all function types, accumulating a global substitution
@@ -60,6 +62,39 @@ let inferTypes (nodes: ExpressionNode list) : Result<InferResult, string> =
                     let env' = env |> Map.map (fun _ t -> TypeInference.applySubst globalSubst t)
                     match TypeInference.inferFunction env' details with
                     | Ok (fnType, substitution, localEnv) ->
+                        // entry point must return i32 (C runtime convention)
+                        let isEntryPoint = ctx.EntryPoint |> Option.map (fun ep -> ep = details.Identifier) |> Option.defaultValue false
+                        // entry point must return i32 — fail if body infers to incompatible type
+                        let entryPointError =
+                            if isEntryPoint then
+                                match fnType with
+                                | TypeInference.TFun (_, retType) ->
+                                    let applied = TypeInference.applySubst substitution retType
+                                    match applied with
+                                    | TypeInference.TVar _ | TypeInference.TInt -> None
+                                    | other ->
+                                        let e : TypeInference.TypeError =
+                                            { Message = $"entry point '{details.Identifier}' must return i32"
+                                              Expected = TypeInference.TInt
+                                              Actual = other
+                                              Location = Some node.Location }
+                                        Some (TypeInference.formatTypeError e)
+                                | _ -> None
+                            else None
+                        match entryPointError with
+                        | Some msg -> Error msg
+                        | None ->
+                        let substitution =
+                            if isEntryPoint then
+                                match fnType with
+                                | TypeInference.TFun (_, retType) ->
+                                    match TypeInference.unify retType TypeInference.TInt with
+                                    | Ok mainSubst -> TypeInference.composeSubst mainSubst substitution
+                                    | Result.Error _ -> substitution
+                                | _ -> substitution
+                            else substitution
+                        let fnType = if isEntryPoint then TypeInference.applySubst substitution fnType else fnType
+                        let localEnv = if isEntryPoint then localEnv |> Map.map (fun _ t -> TypeInference.applySubst substitution t) else localEnv
                         let globalSubst' = TypeInference.composeSubst substitution globalSubst
                         let env'' = Map.add details.Identifier fnType env
                         match fnType with
@@ -166,12 +201,12 @@ let private applyInferredTypes (result: InferResult) (defs: TopLevelDef list) : 
     )
 
 /// Full lowering pipeline: Check -> Lower -> Apply types
-let lower (modulePath: ModulePath) (nodes: ExpressionNode list) : Result<TopLevelDef list, string> =
-    match inferTypes nodes with
+let lower (ctx: CompileContext) (nodes: ExpressionNode list) : Result<TopLevelDef list, string> =
+    match inferTypes ctx nodes with
     | Error e -> Error e
     | Ok result ->
         nodes
-        |> LambdaLifting.liftLambdas modulePath
+        |> LambdaLifting.liftLambdas ctx.ModulePath
         |> applyInferredTypes result
         |> Ok
 
@@ -207,6 +242,14 @@ let rec private collectRefs (expr: Expression) : Set<string> =
         collectRefs lb.Value
     | _ -> Set.empty
 
+/// Collect all let-bound names from a function body
+let private collectLetBindings (exprs: Expression list) : Set<string> =
+    exprs |> List.choose (fun expr ->
+        match expr with
+        | LetBindingExpression lb -> Some lb.Name
+        | _ -> None)
+    |> Set.ofList
+
 /// Check for forward references: each def's body can only reference symbols declared before it.
 /// Accepts an initial symbol table (e.g. pre-seeded with dependency symbols).
 /// Returns Error with location info on first forward reference found.
@@ -219,9 +262,10 @@ let checkForwardReferences (initialTable: SymbolTable.SymbolTable) (defs: TopLev
             match def with
             | TopFunction fn ->
                 let paramNames = fn.Parameters |> List.map (fun p -> p.Name) |> Set.ofList
+                let letBindings = collectLetBindings fn.Body
                 let bodyRefs = fn.Body |> List.map collectRefs |> Set.unionMany
-                // exclude self-params and the function's own name (recursion not checked here)
-                let externalRefs = bodyRefs - paramNames |> Set.remove fn.Name
+                // exclude self-params, let-bound locals, and the function's own name
+                let externalRefs = bodyRefs - paramNames - letBindings |> Set.remove fn.Name
                 let (ModulePath parts) = fn.ModulePath
                 // same-module symbols are reachable by short name
                 let tableWithModScope = SymbolTable.addOpen parts table

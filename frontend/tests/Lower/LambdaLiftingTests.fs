@@ -15,7 +15,8 @@ let lower (source: string) =
             match RowParser.parseFile rows emptyState with
             | Error e -> failwith $"AST error: {e.Message}"
             | Ok (nodes, _) -> nodes
-        match Pipeline.lower (Types.ModulePath []) nodes with
+        let ctx = { ProjectType = Executable; EntryPoint = Some Pipeline.EntryPointName; ModulePath = ModulePath [] }
+        match Pipeline.lower ctx nodes with
         | Ok defs -> defs
         | Error e -> failwith $"Type error: {e}"
 

@@ -5,5 +5,5 @@ let compute a =
     y + 2
   step1 a
 
-let main =
+let main args =
   compute 10

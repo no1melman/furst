@@ -65,8 +65,8 @@ let parseFile (filePath: string) : Result<ExpressionNode list * string, string> 
             | Ok (nodes, _state) ->
                 Ok (nodes, source)
 
-let lowerFileNodes (baseModulePath: ModulePath) (nodes: ExpressionNode list) : Result<Lowered.TopLevelDef list, string> =
-    let mutable currentPath = baseModulePath
+let lowerFileNodes (ctx: CompileContext) (nodes: ExpressionNode list) : Result<Lowered.TopLevelDef list, string> =
+    let mutable currentCtx = ctx
     let mutable currentGroup : ExpressionNode list = []
     let mutable allLowered : Lowered.TopLevelDef list = []
     let mutable error : string option = None
@@ -76,29 +76,29 @@ let lowerFileNodes (baseModulePath: ModulePath) (nodes: ExpressionNode list) : R
             match node.Expr with
             | LibDeclaration parts ->
                 if not currentGroup.IsEmpty then
-                    match Pipeline.lower currentPath (List.rev currentGroup) with
+                    match Pipeline.lower currentCtx (List.rev currentGroup) with
                     | Ok lowered -> allLowered <- allLowered @ lowered
                     | Error e -> error <- Some e
                     currentGroup <- []
-                let (ModulePath currentParts) = baseModulePath
+                let (ModulePath currentParts) = ctx.ModulePath
                 let modPart = currentParts |> List.tryLast |> Option.toList
-                currentPath <- ModulePath (parts @ modPart)
+                currentCtx <- { currentCtx with ModulePath = ModulePath (parts @ modPart) }
             | ModuleDeclaration (parts, []) ->
                 if not currentGroup.IsEmpty then
-                    match Pipeline.lower currentPath (List.rev currentGroup) with
+                    match Pipeline.lower currentCtx (List.rev currentGroup) with
                     | Ok lowered -> allLowered <- allLowered @ lowered
                     | Error e -> error <- Some e
                     currentGroup <- []
-                currentPath <- ModulePath parts
+                currentCtx <- { currentCtx with ModulePath = ModulePath parts }
             | ModuleDeclaration (parts, body) ->
                 if not currentGroup.IsEmpty then
-                    match Pipeline.lower currentPath (List.rev currentGroup) with
+                    match Pipeline.lower currentCtx (List.rev currentGroup) with
                     | Ok lowered -> allLowered <- allLowered @ lowered
                     | Error e -> error <- Some e
                     currentGroup <- []
                 if error.IsNone then
                     let bodyNodes = body |> List.map (fun expr -> { Expr = expr; Location = node.Location })
-                    match Pipeline.lower (ModulePath parts) bodyNodes with
+                    match Pipeline.lower { currentCtx with ModulePath = ModulePath parts } bodyNodes with
                     | Ok lowered -> allLowered <- allLowered @ lowered
                     | Error e -> error <- Some e
             | OpenDeclaration _ ->
@@ -107,7 +107,7 @@ let lowerFileNodes (baseModulePath: ModulePath) (nodes: ExpressionNode list) : R
                 currentGroup <- node :: currentGroup
 
     if error.IsNone && not currentGroup.IsEmpty then
-        match Pipeline.lower currentPath (List.rev currentGroup) with
+        match Pipeline.lower currentCtx (List.rev currentGroup) with
         | Ok lowered -> allLowered <- allLowered @ lowered
         | Error e -> error <- Some e
 
@@ -137,6 +137,8 @@ let loadManifest (path: string) (table: SymbolTable.SymbolTable) : Result<Symbol
 
 let compileFiles (libRoot: string option) (files: string list) (manifests: string list) : Result<Lowered.TopLevelDef list, string> =
     let indexMap = files |> List.mapi (fun i f -> (f, i)) |> Map.ofList
+    let projectType = if libRoot.IsNone then Executable else Library
+    let entryPoint = if libRoot.IsNone then Some Pipeline.EntryPointName else None
     let results = ConcurrentDictionary<int, Lowered.TopLevelDef list>()
     let errors = ConcurrentBag<string>()
 
@@ -145,7 +147,8 @@ let compileFiles (libRoot: string option) (files: string list) (manifests: strin
         | Result.Error error -> errors.Add(error)
         | Ok (nodes, _source) ->
             let modulePath = deriveModulePath libRoot file
-            match lowerFileNodes modulePath nodes with
+            let ctx = { ProjectType = projectType; EntryPoint = entryPoint; ModulePath = modulePath }
+            match lowerFileNodes ctx nodes with
             | Ok lowered -> results.[indexMap.[file]] <- lowered
             | Error error -> errors.Add($"Type error in {file}: {error}")
     ) |> ignore
@@ -170,12 +173,13 @@ let compileFiles (libRoot: string option) (files: string list) (manifests: strin
             | Result.Error error -> Result.Error error
             | Ok symTable ->
                 let resolved = Pipeline.resolveNames symTable ordered
-                // For executables (no libRoot): strip module path from `main` so backend emits bare entry point
+                // For executables: strip module path from entry point so backend emits bare entry point
                 let resolved =
-                    if libRoot.IsNone then
+                    match entryPoint with
+                    | Some ep ->
                         resolved |> List.map (function
-                            | Lowered.TopFunction fn when fn.Name = "main" ->
+                            | Lowered.TopFunction fn when fn.Name = ep ->
                                 Lowered.TopFunction { fn with ModulePath = ModulePath [] }
                             | def -> def)
-                    else resolved
+                    | None -> resolved
                 Result.Ok resolved
