@@ -68,12 +68,23 @@ let run (files: string list) (projectName: string) (targetTriple: string option)
                 | Result.Error error -> AnsiConsole.MarkupLine $"[red]{Markup.Escape error}[/]"; 1
                 | Ok _ ->
                     let manifestPath = Path.Combine(binDir, $"lib{projectName}.fsi")
+                    let typeToString (t: Types.TypeDefinitions) =
+                        match t with
+                        | Types.I32 -> "i32"
+                        | Types.I64 -> "i64"
+                        | Types.Float -> "float"
+                        | Types.Double -> "double"
+                        | Types.String -> "string"
+                        | _ -> "i32"
                     let exportedFns =
                         lowered |> List.choose (function
                             | Lowered.TopFunction functionDef when functionDef.Visibility = Public ->
                                 let (Types.ModulePath parts) = functionDef.ModulePath
                                 let qualifiedName = System.String.Join(".", parts @ [functionDef.Name])
-                                Some $"{qualifiedName} {functionDef.Parameters.Length}"
+                                let retType = typeToString functionDef.ReturnType
+                                let paramTypes = functionDef.Parameters |> List.map (fun p -> typeToString p.Type)
+                                let allTypes = retType :: paramTypes |> String.concat " "
+                                Some $"{qualifiedName} {functionDef.Parameters.Length} {allTypes}"
                             | _ -> None)
                     File.WriteAllLines(manifestPath, exportedFns)
                     AnsiConsole.MarkupLine $"[green]archived {Markup.Escape archivePath} ({exportedFns.Length} exports)[/]"

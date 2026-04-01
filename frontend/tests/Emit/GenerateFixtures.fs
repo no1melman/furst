@@ -9,7 +9,7 @@ open TokenCombinators
 open Lowered
 
 let private fixtureDir =
-    Path.Combine(__SOURCE_DIRECTORY__, "..", "..", "backend", "tests", "fixtures")
+    Path.Combine(__SOURCE_DIRECTORY__, "..", "..", "..", "backend", "tests", "fixtures")
 
 let private lowerWithPath (modPath: string list) (source: string) =
     let fileName = "test.fu"
@@ -20,7 +20,10 @@ let private lowerWithPath (modPath: string list) (source: string) =
             match RowParser.parseFile rows emptyState with
             | Error e -> failwith $"AST error: {e.Message}"
             | Ok (nodes, _) -> nodes
-        Pipeline.lower (Types.ModulePath modPath) nodes
+        let ctx: Types.CompileContext = { ProjectType = Types.Executable; EntryPoint = Some Pipeline.EntryPointName; ModulePath = Types.ModulePath modPath }
+        match Pipeline.lower ctx nodes with
+        | Ok defs -> defs
+        | Error e -> failwith $"Type error: {e}"
 
 let private lower (source: string) = lowerWithPath [] source
 
@@ -89,7 +92,7 @@ let f x =
 [<Fact>]
 let ``Generate fixture: return_42`` () =
     writeFixture "return_42" """
-let main =
+let main args =
   42
 """
 
@@ -99,7 +102,7 @@ let ``Generate fixture: add_and_return`` () =
 let add x y =
   x + y
 
-let main =
+let main args =
   add 13 29
 """
 
@@ -115,6 +118,17 @@ let compute a =
 
 let main n =
   compute n
+"""
+
+[<Fact>]
+let ``Generate fixture: float_add`` () =
+    writeFixture "float_add" """
+let addFloats x y =
+  x + y
+
+let main args =
+  let r = addFloats 1.5 2.5
+  0
 """
 
 let private writeFixtureWithPath (name: string) (modPath: string list) (source: string) =

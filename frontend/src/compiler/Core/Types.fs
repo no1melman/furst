@@ -45,6 +45,8 @@ type Tokens =
   | QualifiedName of string list
   | Parameter of string
   | NumberLiteral of NumberValue
+  | OperatorName of string
+  | OperatorUse of string
   | NoToken
 
 type Line = Line of int64
@@ -63,3 +65,11 @@ type Row =
       Body: Row list }
 
 type ModulePath = ModulePath of string list
+
+type ProjectType = Executable | Library
+
+type CompileContext = {
+    ProjectType: ProjectType
+    EntryPoint: string option
+    ModulePath: ModulePath
+}

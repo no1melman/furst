@@ -45,14 +45,29 @@ let private mapOperator (operator: Ast.Operator) : Furst.Operator =
     | Subtract -> Furst.Operator.OpSubtract
     | Multiply -> Furst.Operator.OpMultiply
 
-let rec private mapExpr (expr: Expression) : Furst.Expression =
+/// Resolve the TypeDefinitions of an expression from context
+let rec private resolveExprType (typeEnv: Map<string, TypeDefinitions>) (expr: Expression) : TypeDefinitions =
+    match expr with
+    | LiteralExpression (IntLiteral _) -> I32
+    | LiteralExpression (FloatLiteral _) -> Double
+    | LiteralExpression (StringLiteral _) -> String
+    | IdentifierExpression name -> Map.tryFind name typeEnv |> Option.defaultValue I32
+    | OperatorExpression op -> resolveExprType typeEnv op.Left
+    | LetBindingExpression lb -> if lb.Type <> Inferred then lb.Type else resolveExprType typeEnv lb.Value
+    | FunctionCallExpression call ->
+        // look up return type: function name stored as "fnName" with return type in typeEnv
+        Map.tryFind call.FunctionName typeEnv |> Option.defaultValue I32
+    | NegateExpression inner -> resolveExprType typeEnv inner
+    | _ -> I32
+
+let rec private mapExpr (typeEnv: Map<string, TypeDefinitions>) (expr: Expression) : Furst.Expression =
     let protoExpr = Furst.Expression()
     match expr with
     | LetBindingExpression letBinding ->
         let protoLetBinding = Furst.LetBinding()
         protoLetBinding.Name <- letBinding.Name
         protoLetBinding.Type <- mapType letBinding.Type
-        protoLetBinding.Value <- mapExpr letBinding.Value
+        protoLetBinding.Value <- mapExpr typeEnv letBinding.Value
         protoExpr.LetBinding <- protoLetBinding
         protoExpr.ResolvedType <- mapType letBinding.Type
 
@@ -60,21 +75,21 @@ let rec private mapExpr (expr: Expression) : Furst.Expression =
         let protoFunctionCall = Furst.FunctionCall()
         protoFunctionCall.Name <- functionCall.FunctionName
         for arg in functionCall.Arguments do
-            protoFunctionCall.Arguments.Add(mapExpr arg)
+            protoFunctionCall.Arguments.Add(mapExpr typeEnv arg)
         protoExpr.FunctionCall <- protoFunctionCall
-        protoExpr.ResolvedType <- mapType Inferred
+        protoExpr.ResolvedType <- mapType (resolveExprType typeEnv expr)
 
     | OperatorExpression operation ->
         let protoOperation = Furst.Operation()
-        protoOperation.Left <- mapExpr operation.Left
+        protoOperation.Left <- mapExpr typeEnv operation.Left
         protoOperation.Op <- mapOperator operation.Operator
-        protoOperation.Right <- mapExpr operation.Right
+        protoOperation.Right <- mapExpr typeEnv operation.Right
         protoExpr.Operation <- protoOperation
-        protoExpr.ResolvedType <- mapType Inferred
+        protoExpr.ResolvedType <- mapType (resolveExprType typeEnv expr)
 
     | IdentifierExpression name ->
         protoExpr.Identifier <- name
-        protoExpr.ResolvedType <- mapType Inferred
+        protoExpr.ResolvedType <- mapType (resolveExprType typeEnv expr)
 
     | LiteralExpression lit ->
         let protoLiteral = Furst.LiteralValue()
@@ -92,17 +107,20 @@ let rec private mapExpr (expr: Expression) : Furst.Expression =
 
     | NegateExpression inner ->
         // Emit as: 0 - inner
+        let innerType = resolveExprType typeEnv inner
         let protoOperation = Furst.Operation()
         let zeroLit = Furst.LiteralValue()
-        zeroLit.IntLiteral <- 0
+        match innerType with
+        | Double | Float -> zeroLit.FloatLiteral <- 0.0
+        | _ -> zeroLit.IntLiteral <- 0
         let zeroExpr = Furst.Expression()
         zeroExpr.Literal <- zeroLit
-        zeroExpr.ResolvedType <- mapType I32
+        zeroExpr.ResolvedType <- mapType innerType
         protoOperation.Left <- zeroExpr
         protoOperation.Op <- Furst.Operator.OpSubtract
-        protoOperation.Right <- mapExpr inner
+        protoOperation.Right <- mapExpr typeEnv inner
         protoExpr.Operation <- protoOperation
-        protoExpr.ResolvedType <- mapType Inferred
+        protoExpr.ResolvedType <- mapType innerType
 
     | FunctionDefinitionExpression _ ->
         protoExpr.Identifier <- "<error:unlowered-function>"
@@ -127,7 +145,12 @@ let rec private mapExpr (expr: Expression) : Furst.Expression =
 
 // -- Top-level mapping --
 
-let private mapFunctionDef (functionDef: LoweredFunctionDef) : Furst.FunctionDef =
+let private mapFunctionDef (globalTypes: Map<string, TypeDefinitions>) (functionDef: LoweredFunctionDef) : Furst.FunctionDef =
+    // build local type env: global types + params + function's own return type
+    let localTypes =
+        functionDef.Parameters
+        |> List.fold (fun m p -> Map.add p.Name p.Type m) globalTypes
+        |> Map.add functionDef.Name functionDef.ReturnType
     let protoFuncDef = Furst.FunctionDef()
     protoFuncDef.Name <- functionDef.Name
     protoFuncDef.ReturnType <- mapType functionDef.ReturnType
@@ -136,8 +159,14 @@ let private mapFunctionDef (functionDef: LoweredFunctionDef) : Furst.FunctionDef
         protoParam.Name <- param.Name
         protoParam.Type <- mapType param.Type
         protoFuncDef.Parameters.Add(protoParam)
+    // walk body, accumulating let binding types into env
+    let mutable bodyEnv = localTypes
     for bodyExpr in functionDef.Body do
-        protoFuncDef.Body.Add(mapExpr bodyExpr)
+        protoFuncDef.Body.Add(mapExpr bodyEnv bodyExpr)
+        match bodyExpr with
+        | LetBindingExpression lb when lb.Type <> Inferred ->
+            bodyEnv <- Map.add lb.Name lb.Type bodyEnv
+        | _ -> ()
     protoFuncDef.Location <- mapSourceLoc functionDef.Location
     let (ModulePath parts) = functionDef.ModulePath
     for part in parts do
@@ -166,6 +195,14 @@ let private fsoVersion = BitConverter.GetBytes(1us)
 let private fsoReserved = [| 0uy; 0uy |]
 
 let writeFso (outputPath: string) (sourceFile: string) (defs: TopLevelDef list) : unit =
+    // build global type map: function name → return type
+    let globalTypes =
+        defs |> List.fold (fun m def ->
+            match def with
+            | TopFunction fn -> Map.add fn.Name fn.ReturnType m
+            | _ -> m
+        ) Map.empty
+
     let furstModule = Furst.FurstModule()
     furstModule.SourceFile <- sourceFile
 
@@ -175,7 +212,7 @@ let writeFso (outputPath: string) (sourceFile: string) (defs: TopLevelDef list) 
         | _ ->
             let topLevel = Furst.TopLevel()
             match def with
-            | TopFunction functionDef -> topLevel.Function <- mapFunctionDef functionDef
+            | TopFunction functionDef -> topLevel.Function <- mapFunctionDef globalTypes functionDef
             | TopStruct structDef -> topLevel.StructDef <- mapStructDef structDef
             | TopOpen _ -> ()
             furstModule.Definitions.Add(topLevel)

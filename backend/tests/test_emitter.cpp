@@ -186,7 +186,8 @@ TEST(Emitter, ModulePathManglesName) {
     ASSERT_TRUE(result.success) << result.error_message;
     // Math.add → Math__add in LLVM IR
     EXPECT_TRUE(result.ir.find("define i32 @Math__add") != std::string::npos)
-        << "expected mangled name Math__add\n" << result.ir;
+        << "expected mangled name Math__add\n"
+        << result.ir;
 }
 
 TEST(Emitter, PrivateFunctionHasInternalLinkage) {
@@ -194,7 +195,8 @@ TEST(Emitter, PrivateFunctionHasInternalLinkage) {
     ASSERT_TRUE(result.success) << result.error_message;
     // private let helper → internal linkage
     EXPECT_TRUE(result.ir.find("define internal i32 @Math__helper") != std::string::npos)
-        << "expected internal linkage for private function\n" << result.ir;
+        << "expected internal linkage for private function\n"
+        << result.ir;
 }
 
 TEST(Emitter, PublicFunctionHasExternalLinkage) {
@@ -207,8 +209,38 @@ TEST(Emitter, PublicFunctionHasExternalLinkage) {
     auto line_start = result.ir.rfind('\n', pos);
     auto line = result.ir.substr(line_start + 1, pos - line_start - 1);
     EXPECT_TRUE(line.find("internal") == std::string::npos)
-        << "public function should not have internal linkage\n" << result.ir;
+        << "public function should not have internal linkage\n"
+        << result.ir;
 }
+
+// -- Float arithmetic --
+
+TEST(Emitter, FloatAddEmitsFAdd) {
+    auto result = furst::compile("tests/fixtures/float_add.fso", {});
+    ASSERT_TRUE(result.success) << result.error_message;
+    EXPECT_TRUE(result.ir.find("fadd double") != std::string::npos)
+        << "expected fadd double instruction\n"
+        << result.ir;
+}
+
+TEST(Emitter, FloatFunctionHasDoubleSignature) {
+    auto result = furst::compile("tests/fixtures/float_add.fso", {});
+    ASSERT_TRUE(result.success) << result.error_message;
+    EXPECT_TRUE(result.ir.find("define double @addFloats(double %x, double %y)") !=
+                std::string::npos)
+        << "expected double params and return type\n"
+        << result.ir;
+}
+
+TEST(Emitter, FloatFunctionCallUsesDouble) {
+    auto result = furst::compile("tests/fixtures/float_add.fso", {});
+    ASSERT_TRUE(result.success) << result.error_message;
+    EXPECT_TRUE(result.ir.find("call double @addFloats") != std::string::npos)
+        << "expected call with double return\n"
+        << result.ir;
+}
+
+// -- Return value --
 
 TEST(Emitter, FunctionBodyReturnsLastExpression) {
     auto result = furst::compile("tests/fixtures/let_binding.fso", {});

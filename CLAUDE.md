@@ -10,11 +10,11 @@ the minor version in `VERSION` tracks checked-off epic tasks in `EPICS.md`. afte
 
 ## Build & Test
 
-all commands must run inside nix devshells to ensure correct toolchain versions. use `nix develop .#<shell> -c bash -c '...'`.
+all commands run via `dev.sh` inside nix devshells: `nix develop .#<shell> -c ./dev.sh <command>`.
 
-- **frontend** (`nix develop .#frontend`): `dotnet test`, `dotnet build`, `dotnet reportgenerator` etc from the frontend dir
-- **backend** (`nix develop .#backend`): shell hooks provide `configure [mode]`, `build`, `test`, `fmt`, `lint`, `clean`, `rebuild`, `cycle`, `gen-fixtures`, `preflight`
-- **default** (`nix develop .#default`): `publish` (builds both frontend + backend)
+- **backend**: `nix develop .#backend -c ./dev.sh <cmd>` — `configure [mode]`, `build`, `test`, `fmt`, `lint`, `clean`, `rebuild`, `cycle`, `gen-fixtures`, `preflight`
+- **frontend**: `nix develop .#frontend -c ./dev.sh <cmd>` — `fe-test`, `fe-build`
+- **full**: `nix develop .#default -c ./dev.sh publish` (builds both frontend + backend)
 
 ## Plan
 

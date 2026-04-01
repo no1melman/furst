@@ -50,7 +50,8 @@ and pApp : TParser<Expression> =
                     | [] -> (List.rev acc, toks, st)
                     | t :: _ ->
                         match t.Token with
-                        | Tokens.Addition | Tokens.Subtraction | Tokens.Multiply | ClosedParen -> (List.rev acc, toks, st)
+                        | Tokens.Addition | Tokens.Subtraction | Tokens.Multiply
+                        | OperatorUse _ | ClosedParen -> (List.rev acc, toks, st)
                         | _ ->
                             match pAtom toks st with
                             | POk (arg, rest', st') -> collectArgs (arg :: acc) rest' st'
@@ -100,5 +101,18 @@ and pAdd : TParser<Expression> =
             | _ -> PError (CompileError.Empty "not +/-")
     chainl1 pMul opAdd
 
+/// User-defined infix operators (lowest precedence, left-associative)
+and pUserOp : TParser<Expression> =
+    let opParser : TParser<Expression -> Expression -> Expression> =
+        fun toks st ->
+            match toks with
+            | t :: rest ->
+                match t.Token with
+                | OperatorUse opName ->
+                    POk ((fun l r -> FunctionCallExpression { FunctionName = opName; Arguments = [l; r] }), rest, st)
+                | _ -> PError (CompileError.Empty "not a user op")
+            | _ -> PError (CompileError.Empty "not a user op")
+    chainl1 pAdd opParser
+
 /// Top-level expression parser
-and pExpr : TParser<Expression> = pAdd
+and pExpr : TParser<Expression> = pUserOp

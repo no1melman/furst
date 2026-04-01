@@ -1,21 +1,19 @@
 # Session Handoff
 
 ## What was worked on
-Built the entire C++ backend from scratch and the project system. Epics 1-5 complete: build infrastructure (CMake, Nix flake), .fso reader, LLVM IR emitter (literals, arithmetic, let bindings, functions, calls, lambda lifting), full compilation pipeline (.fso → .ll/.o/executable with optimization and debug info), and project system (furst new/build/run, yaml config, libraries with export keyword, .a archives, .fsi manifests, dependencies, multi-file compilation, workspaces). Started Epic 6 — implemented Hindley-Milner type inference (Algorithm W) and wired it into the lowering pipeline. Also refactored FunctionDefinition to a proper DU (InternalFuncDef/ExportedFuncDef) and added the `export` keyword to the parser.
+Completed Epic 6 (6.7 + 6.8). Added backend type ICEs (binary op/call arity/call arg type/return type mismatch → abort with source locations). Built 7 end-to-end integration tests for typed/inferred/mixed params, let bindings, double arithmetic, and entry point return type validation. Fixed parser bug where multiline let bindings were incorrectly parsed as zero-param functions. Added `CompileContext` threaded through the pipeline (carries ProjectType, EntryPoint, ModulePath). Entry point `main` now requires a parameter (`let main args = ...`) and must return i32. Created `dev.sh` to replace broken nix shell hooks.
 
 ## Current state
-35 backend tests passing, 57/59 frontend tests passing (2 pre-existing). TypeInference.fs is implemented and wired in — inferred types flow through lowering but haven't verified the IR output shows resolved types instead of all-i32. All changes unstaged on `feature/claude-time`.
+VERSION 0.66.0. Epic 6 fully complete. All changes unstaged on `feat/type-system`. Frontend: 122 pass, 3 skip. Backend: 45 pass. Integration: 17 pass, 1 skip. Two skipped tests are for forward-ref checking on let binding values (exposed by parser fix, not yet addressed).
 
 ## Next step
-Continue Epic 6.4 — operators as infix functions. The type inference foundation is in place. Next: desugar `+` to function calls, add builtin operator functions, then implement `let (+) a b = ...` syntax for user-defined operators.
+Epic 7 — Type Contracts & Polymorphic Operators (trait/protocol system). Needed before Epic 8 (Drop trait) and Epic 9 (Copyable trait).
 
 ## Key decisions
-- C++ backend uses LLVM C++ API (not C API), C++23, smart pointers, composition over inheritance
-- `Result<T,E>` custom type instead of `std::expected` (clang 18 + libstdc++ doesn't have it)
-- Internal types in `furst::ast` namespace to avoid proto name collision
-- File interchange via .fso (protobuf), will switch to in-memory interop later
-- `export` keyword for public API, everything internal by default
-- FunctionDefinition is DU: InternalFuncDef | ExportedFuncDef (not a bool flag)
-- Multi-file: sources merged in yaml-defined order (like F# fsproj), single compilation unit
-- Library manifests (.fsi) auto-generated, never hand-edited
-- User is learning C++ — walkthrough code ~20 lines at a time, explain in C#/F# terms, check CPP_LEARNT.md
+- Backend type checks are ICEs (abort), not user errors — frontend owns validation, backend trusts it
+- `main` is a function (`let main args = ...`), not a let binding — entry point constrained to return i32
+- `CompileContext` record threaded through pipeline instead of individual params — extensible for future needs
+- `dev.sh` replaces nix shell hooks for reliable CI/tooling (`nix develop .#backend -c ./dev.sh cycle`)
+- Multiline `let x = \n  expr` is a let binding, not a zero-param function — parser fixed
+- Operators stay as AST nodes, not desugared to function calls (confirmed from prior session)
+- No type coercion — type mismatches are always errors

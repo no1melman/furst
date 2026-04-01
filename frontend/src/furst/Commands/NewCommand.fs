@@ -23,7 +23,7 @@ targets:
 """
     File.WriteAllText(Path.Combine(dir, "furst.yaml"), yaml)
 
-    let mainFu = """let main =
+    let mainFu = """let main args =
   0
 """
     File.WriteAllText(Path.Combine(srcDir, "main.fu"), mainFu)

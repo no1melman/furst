@@ -9,7 +9,7 @@ open Furst.Tests.CompileHelper
 let ``Entry point main has empty module path in executable`` () =
     let result = compileSource [
         "main.fu", """
-let main =
+let main args =
   42
 """
     ]
@@ -31,7 +31,7 @@ let ``Non-main functions keep module path in executable`` () =
 let helper =
   1
 
-let main =
+let main args =
   helper
 """
     ]
@@ -50,7 +50,7 @@ let main =
 let ``Library project does not strip main module path`` () =
     let result = compileSourceAsLibrary "MyLib" [
         "main.fu", """
-let main =
+let main args =
   42
 """
     ]

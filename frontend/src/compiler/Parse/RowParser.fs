@@ -79,43 +79,60 @@ and parseLetOrFunc (row: Row) (state: ParseState) (visibility: Visibility) : Res
         | _ -> row.Expressions
     // skip Let
     let afterLet = exprTokens |> List.tail
-    // get name
+    // get name (either regular Name or OperatorName from lexer)
     match afterLet with
     | nameToken :: rest ->
         let name =
             match nameToken.Token with
             | Name (Word n) -> Some n
+            | OperatorName n -> Some n
             | _ -> None
         match name with
         | None ->
             Error { Message = $"Expected name after let, got {nameToken.Token}"
                     Line = nameToken.Line; Column = nameToken.Column; Length = nameToken.Length }
         | Some funcName ->
-            if row.Body.IsEmpty then
-                // let binding: everything after name is params? No — look for Assignment
-                let tokensAfterName = rest
-                match tokensAfterName |> List.tryFindIndex (fun t -> t.Token = Assignment) with
-                | None ->
-                    Error { Message = $"Expected '=' in let binding for '{funcName}'"
-                            Line = nameToken.Line; Column = nameToken.Column; Length = nameToken.Length }
-                | Some assignIdx ->
-                    let valueTokens = tokensAfterName |> List.skip (assignIdx + 1)
-                    if valueTokens.IsEmpty then
-                        let assignTok = tokensAfterName.[assignIdx]
-                        Error { Message = $"Expected value after '=' in let binding for '{funcName}'"
+            // let binding vs function: if `=` is immediately after name, it's a let binding.
+            // if there are params before `=`, it's a function definition.
+            let isLetBinding =
+                match rest with
+                | t :: _ when t.Token = Assignment -> true
+                | _ -> false
+            if isLetBinding then
+                let valueTokens = rest |> List.tail  // skip the `=`
+                if valueTokens.IsEmpty && row.Body.IsEmpty then
+                    let assignTok = rest.Head
+                    Error { Message = $"Expected value after '=' in let binding for '{funcName}'"
+                            Line = assignTok.Line; Column = assignTok.Column; Length = assignTok.Length }
+                else
+                    // value is either inline tokens, body rows, or both
+                    let inlineExpr =
+                        if valueTokens.IsEmpty then None
+                        else
+                            match pExpr valueTokens state with
+                            | POk (expr, _, _) -> Some expr
+                            | PError _ -> None
+                    let bodyExpr =
+                        if row.Body.IsEmpty then None
+                        else
+                            match parseBody row.Body state with
+                            | Ok (exprs, _) -> exprs |> List.tryLast
+                            | Error _ -> None
+                    match inlineExpr, bodyExpr with
+                    | None, None ->
+                        let assignTok = rest.Head
+                        Error { Message = $"Expected value in let binding for '{funcName}'"
                                 Line = assignTok.Line; Column = assignTok.Column; Length = assignTok.Length }
-                    else
-                        match pExpr valueTokens state with
-                        | POk (valExpr, _, state') ->
-                            let state'' =
-                                match registerSymbol funcName 0 [] state' with
-                                | POk ((), _, s) -> s
-                                | _ -> state'
-                            Ok ({ Expr = LetBindingExpression { Name = funcName; Type = Inferred; Value = valExpr }
-                                  Location = loc }, state'')
-                        | PError e -> Error e
+                    | _ ->
+                        let valExpr = match inlineExpr with Some e -> e | None -> bodyExpr.Value
+                        let state' =
+                            match registerSymbol funcName 0 [] state with
+                            | POk ((), _, s) -> s
+                            | _ -> state
+                        Ok ({ Expr = LetBindingExpression { Name = funcName; Type = Inferred; Value = valExpr }
+                              Location = loc }, state')
             else
-                // function definition
+                // function definition — tokens before `=` are parameters
                 parseFunctionDef funcName rest row.Body visibility loc state
     | [] ->
         Error (CompileError.Empty "Expected name after let")

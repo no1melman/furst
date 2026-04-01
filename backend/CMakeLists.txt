@@ -95,6 +95,7 @@ add_executable(backend_tests
     tests/test_errors.cpp
     tests/test_reader.cpp
     tests/test_emitter.cpp
+    tests/test_ice.cpp
     tests/test_integration.cpp
 )
 target_link_libraries(backend_tests PRIVATE

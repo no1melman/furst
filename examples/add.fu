@@ -1,5 +1,5 @@
 let add x y =
   x + y
 
-let main =
+let main args =
   add 13 29

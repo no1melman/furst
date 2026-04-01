@@ -43,7 +43,7 @@ All public API goes through `backend.h` → `compile()`. Internal modules (fso_r
 
 1. **Write test** for the behavior
 2. **Write code** to pass it
-3. **Run**: `cmake --build build --target format && cmake --build build && ctest --test-dir build --output-on-failure`
+3. **Run**: `nix develop .#backend -c ./dev.sh cycle` (fmt + build + test)
 4. Never skip format or test steps
 
 ## Style
@@ -53,6 +53,7 @@ All public API goes through `backend.h` → `compile()`. Internal modules (fso_r
 - LLVM C++ API (`llvm/IR/`, `llvm/Support/`, etc.) — wrap in RAII where possible
 - Braces always, even for single-line if/else
 - 4-space indent, 100 col limit
+- **Early return** — guard-clause style. Check error conditions and return/abort early, avoid nesting if statements. Flat is better than nested.
 
 ## Errors
 

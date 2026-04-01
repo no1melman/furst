@@ -8,7 +8,7 @@
 | ADR | Title | Status | Covered by | % Done |
 |-----|-------|--------|-----------|--------|
 | 0001 | Symbol tracking | Proposed | 5b.7, 5b.8, 5b.10 | 100% |
-| 0002 | Type system & inference | Proposed | 6.1–6.3, 6.11–6.13, 11.1 | 0% |
+| 0002 | Type system & inference | Proposed | 6.1–6.3, 6.11–6.13, 11.1 | 50% |
 | 0003 | Async/green threads | Proposed | 12.1 | 0% |
 | 0004 | Memory ownership | Proposed | 8.1 | 0% |
 | 0005 | Resource management | Proposed | 9.1 | 0% |
@@ -113,31 +113,26 @@ Deferred:
 - [x] 5c.9 Folder restructure — `Tokenise/` (Parsers, StructParser, Lexer) and `Parse/` (combinators, parsers) as sibling dirs
 - [x] 5c.10 Naming cleanup — `createAST` → `tokenise`, `rowReader` → `printRow`, `fakeTokenListOption` → `alwaysSome`, `isIndentifierChar` → `isIdentifierChar`
 
-## Epic 6: Type System & Operators as Functions
+## Epic 6: Type System & Operators
 
 > ADR: [ADR-0002](docs/adr/ADR-0002-type-system.md) (phases 1–4: primitives, inference, unification, typed AST)
 >
 > ADR-0002 phases 5–7 (sum types, pattern matching, generics) deferred to Epic 11.
 
-- [ ] 6.1 Hindley-Milner type inference — Algorithm W in the frontend, infer types for all expressions
-- [ ] 6.2 Type unification — unify type variables, detect mismatches, produce clear errors with source locations
-- [ ] 6.3 Typed AST — replace `Inferred` with concrete types after inference, flow through to .fso
-- [ ] 6.4 Operators as infix functions — `+` desugars to `add(a, b)`, `-` to `subtract(a, b)`, `*` to `multiply(a, b)`
-- [ ] 6.5 Builtin operator functions — compiler-provided `add`, `subtract`, `multiply` with type-aware overloads (i32, i64, float, double)
-- [ ] 6.6 Operator definition — `let (+) a b = ...` syntax for user-defined operators
-- [ ] 6.7 Operator resolution — `a + b` in source resolves to matching operator function definition
-- [ ] 6.8 Precedence and associativity — builtin precedence table, user operators default to lowest precedence
-- [ ] 6.9 Backend type-aware codegen — emit `fadd`/`fsub` for floats, `add`/`sub` for ints based on inferred types
-- [ ] 6.10 Type errors in backend — reject type mismatches with source locations from .fso
-- [ ] 6.11 Struct type registration — register struct types in type environment, fields as typed records
-- [ ] 6.12 Struct construction expression — `Point { x = 1, y = 2 }` syntax, type-checked against definition
-- [ ] 6.13 Field access expression — `p.x` syntax, resolves to field index + type
-- [ ] 6.14 Backend struct codegen — bare minimum: LLVM named struct types, stack alloca, GEP for construction and field access. No heap/arena — just enough to prove structs work before memory model ADR
-- [ ] 6.15 Tests — type inference roundtrips, operator desugaring, mixed-type errors, struct construction and field access
+- [x] 6.1 Hindley-Milner type inference — Algorithm W in the frontend, infer types for all expressions
+- [x] 6.2 Type unification — unify type variables, detect mismatches, produce clear errors with source locations
+- [x] 6.3 Typed AST — replace `Inferred` with concrete types after inference, flow through to .fso
+- [x] 6.4 Operator definition — `let (+) a b = ...` syntax for user-defined operators, infix usage desugars to function call
+- [x] 6.5 Precedence and associativity — builtin precedence table, user operators default to lowest precedence
+- [x] 6.6 Backend type-aware codegen — emit `fadd`/`fsub` for floats, `add`/`sub` for ints based on inferred types
+- [ ] 6.7 Type errors in backend — reject type mismatches with source locations from .fso
+- [ ] 6.8 Struct type registration — register struct types in type environment, fields as typed records
+- [ ] 6.9 Struct construction expression — `Point { x = 1, y = 2 }` syntax, type-checked against definition
+- [ ] 6.10 Field access expression — `p.x` syntax, resolves to field index + type
+- [ ] 6.11 Backend struct codegen — bare minimum: LLVM named struct types, stack alloca, GEP for construction and field access. No heap/arena — just enough to prove structs work before memory model ADR
+- [ ] 6.12 Tests — type inference roundtrips, mixed-type errors, struct construction and field access
 
 Unresolved questions:
-- prelude module for builtins or hardcoded in compiler?
-- type classes / traits for overloading, or function overloading by type?
 - user-declarable precedence (`infixl 6 +`) or fixed table?
 - what operator symbols allowed? just math, or custom like `<|>`, `>>=`?
 

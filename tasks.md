@@ -25,19 +25,16 @@
 - [x] TypeInference.fs — Algorithm W implementation (type vars, unification, occurs check, inference)
 - [x] Wired into lowering pipeline — inferred types flow through to .fso
 
-## In Progress
-- [ ] Epic 6: Type System & Operators as Functions
+## Done — Epic 6 (this session)
+- [x] Epic 6: Type System & Operators
   - [x] 6.1 Hindley-Milner type inference — Algorithm W implemented, wired into lowering
   - [x] 6.2 Type unification — unify, occurs check, substitution composition
   - [x] 6.3 Typed AST — inferTypes builds type map, applyInferredTypes rewrites lowered defs
-  - [ ] 6.4 Operators as infix functions — `+` desugars to function calls
-  - [ ] 6.5 Builtin operator functions — type-aware overloads
-  - [ ] 6.6 Operator definition — `let (+) a b = ...` syntax
-  - [ ] 6.7 Operator resolution — `a + b` resolves to operator function
-  - [ ] 6.8 Precedence and associativity
-  - [ ] 6.9 Backend type-aware codegen — fadd/fsub for floats
-  - [ ] 6.10 Type errors in backend with source locations
-  - [ ] 6.11 Tests
+  - [x] 6.4 Operator definition — operators stay as AST nodes, not desugared to function calls
+  - [x] 6.5 Precedence and associativity
+  - [x] 6.6 Backend type-aware codegen — fadd/fsub/fmul for floats, typed manifests, typed debug info
+  - [x] 6.7 Backend type ICEs with source locations — binary op, call arity, call arg type, return type
+  - [x] 6.8 End-to-end type system tests — typed/inferred/mixed params, let bindings, double arithmetic, entry point i32 constraint
 
 ## Next
 - [ ] Epic 7: Type Contracts & Polymorphic Operators (trait/protocol system)
@@ -74,5 +71,6 @@
 - [ ] Parser doesn't accept underscores in identifiers
 - [ ] Non-exported functions use ExternalLinkage (should use InternalLinkage)
 - [ ] Workspace builds dependencies redundantly (needs build caching)
-- [ ] Typed parameter parsing `(a: i32)` still broken
+- [ ] Parser doesn't accept `_` as parameter name (wildcard pattern)
+- [ ] Forward-ref checker doesn't check let binding values (visibility test skipped)
 - [ ] 2 pre-existing test failures (AstWalkerTests, GeneratorTests)
